@@ -9,16 +9,23 @@ MODSOBJ		= mpi.o parameters.o \
 		modes.o variables.o transform.o velocity.o \
 		turb.o io.o 
 
-NETCDFPATH = /usr/local/Cellar/netcdf/4.7.4_1
-FFTWPATH = /usr/local/Cellar/fftw/3.3.8_2
+NETCDFPATH = /home/santiago_b/.local
+##NETCDFPATH = /home/software/netcdf/4.6.3
+FFTWPATH = /home/santiago_b/FFTW3_GHOST
+MPIPATH = /cm/shared/engaging/openmpi/2.0.3
 
-COMPILER        = mpifort
-COMPFLAGS       = -ffree-line-length-none -x f95-cpp-input -c -O3 \
+COMPILER        = mpif90
+##COMPFLAGS       = -ffree-line-length-none -x f95-cpp-input -c -O3 \
+
+COMPFLAGS       = -cpp -traditional-cpp -O3 -funroll-loops -ffree-line-length-none -x f95-cpp-input -c \
+		-I$(MPIPATH)/include/ -I$(MPIPATH)/lib/\
 		-I$(NETCDFPATH)/include/ \
 		-I$(FFTWPATH)/include/
 LIBS            = -lm \
-		-L$(NETCDFPATH)/lib/ -lnetcdf -lnetcdff \
-		-L$(FFTWPATH)/lib -lfftw3
+		-L$(NETCDFPATH)/lib -lnetcdff -L$(NETCDFPATH)/lib -lhdf5_hl -lhdf5 -lm -ldl -lz -lcurl \
+		-L$(FFTWPATH)/lib -lfftw3 \
+		-L$(MPIPATH)/lib/ \
+		-pthread -Wl,-rpath -Wl,$(MPIPATH)/lib -Wl,--enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi
 
 #------------------------------------------------------------------------
 
