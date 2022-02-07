@@ -27,8 +27,7 @@ PROGRAM double
      call var_maskmpt(vel_c)
      call io_save_state()
   else
-     if (mpi_rnk==0) print*, 'NOT starting from zero, therefore not generating a
-     new random initial condition.'
+     if (mpi_rnk==0) print*, 'NOT starting from zero, therefore not generating a new random initial condition.'
   endif
 
 #ifdef _MPI
