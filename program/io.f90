@@ -13,7 +13,7 @@
    save
 
    character(200)        :: io_statefile
-   integer               :: io_save1, io_save2
+   integer               :: io_save1
    integer,     private  :: io_KE, io_HI
    type (mpt),  private  :: c1,c2,c3
    character(200) :: oloc='RUNNING'
@@ -23,9 +23,28 @@
 !  initialiser fn
 !--------------------------------------------------------------------------
    subroutine io_precompute()
-      io_statefile = 'state.cdf.in'
-      io_save1 = 0
-      io_save2 = 0
+     character(4) :: cnum
+     ! Check
+     ! Namelist for input files
+     NAMELIST / status / io_save1, turb_save2
+       if (mpi_rnk==0) then
+          open(1,file='parameter.inp',status='unknown',form='formatted')
+          read(1,NML=status)
+          close(1)
+      endif
+#ifdef _MPI
+      call mpi_bcast(io_save1,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(turb_save2,1,mpi_integer,0,mpi_comm_world,mpi_er)
+#endif
+      if (io_save1==0) then  
+        io_statefile = 'state.cdf.in'
+      else
+        write(cnum,'(I4.4)') io_save1
+        if (mpi_rnk==0)then
+            print*, 'starting from state'// cnum
+        endif
+        io_statefile = 'state'//cnum//'.cdf.dat'
+      endif
       io_KE    = 20
       io_hi    = 0      
       if (s_HIS) &
@@ -36,19 +55,29 @@
 !--------------------------------------------------------------------------
 !  Open files written to every ... steps runtime
 !--------------------------------------------------------------------------
-   ! subroutine io_openfiles()
-   !    character(10), save :: s = 'unknown', a = 'sequential', p='append'
-   !    if(mpi_rnk/=0) return
-   !    if(io_KE/=0)  open(io_KE,status=s,access=a,position=p, file='vel_energy.dat')
-   !    if(io_hi/=0)  open(io_hi,status=s,access=a,position=p, file='vel_history.dat')
-   !    s = 'old'
-   ! end subroutine io_openfiles
 
    subroutine io_openfiles()
+      logical :: exist
       character(10), save :: s = 'replace', a = 'sequential', p='append'
       if(mpi_rnk/=0) return
-      if(io_KE/=0)  open(io_KE,status=s,position=p, file='vel_energy.dat')
-      if(io_hi/=0)  open(io_hi,status=s,position=p, file='vel_history.dat')
+      ! Check for currently existing vel_energy.dat
+      inquire(file='vel_energy.dat',exist=exist)
+      if (exist) then
+          s = 'old'
+          if(io_KE/=0)  open(io_KE,status=s,position=p, file='vel_energy.dat')
+      else 
+          s = 'new'
+          if(io_KE/=0)  open(io_KE,status=s,position=p, file='vel_energy.dat')
+      endif
+      ! Check for currently existing vel_history.dat
+      inquire(file='vel_history.dat',exist=exist)
+      if (exist) then
+          s = 'old'
+          if(io_hi/=0)  open(io_hi,status=s,position=p, file='vel_history.dat')
+      else 
+          s = 'new'
+          if(io_hi/=0)  open(io_hi,status=s,position=p, file='vel_history.dat')
+      endif
       s = 'old'
 !      a = 'stream'
    end subroutine io_openfiles
@@ -103,7 +132,6 @@
             if (modulo(tim_step,i_WT*i_MT*i_save_rate2)==0) &
                  call turb_save_state()
          end if
-         io_save2 = io_save2+1
       end if
 
 ! Every 50 i_save_rate2 reopen vel_energy to
@@ -140,13 +168,18 @@
       if(mpi_rnk==0 .and. dabs(tim_t-d)>1d-8)  &
          print*,' t    :',d,' --> ', tim_t
 
+      e=nf90_get_att(f,nf90_global,'tstep', d)
+      if(d_time<0d0) tim_step = d
+      if(mpi_rnk==0 .and. dabs(tim_step-d)>1d-8)  &
+         print*,' tstep    :',d,' --> ', tim_step
+
       e=nf90_get_att(f,nf90_global,'Re', d)
       if(mpi_rnk==0 .and. dabs(d_Re-d)>1d-8)  &
          print*,' Re   :',d,' --> ', d_Re
       e=nf90_get_att(f,nf90_global,'alpha', d)
       if(mpi_rnk==0 .and. dabs(d_alpha-d)>1d-8)  &
          print*,' alpha:',d,' --> ', d_alpha
-      e=nf90_get_att(f,nf90_global,'gamma', d)
+     e=nf90_get_att(f,nf90_global,'gamma', d)
       if(mpi_rnk==0 .and. dabs(d_gamma-d)>1d-8)  &
          print*,' gamma:',d,' --> ', d_gamma
 
@@ -267,6 +300,7 @@
          e=nf90_create('state'//cnum//'.cdf.dat', nf90_clobber, f)
 
          e=nf90_put_att(f, nf90_global, 't', tim_t)
+         e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
          e=nf90_put_att(f, nf90_global, 'Re', d_Re)
          e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
          e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
