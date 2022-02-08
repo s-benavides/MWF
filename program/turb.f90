@@ -14,7 +14,7 @@
       double precision     :: Re(3,0:i_SN-1, 0:i_SMp-1,i_MT)
     end type tst
    
-   integer :: turb_save2 = 0
+   integer :: turb_save2
    type(tst) :: tdata
 
  contains
