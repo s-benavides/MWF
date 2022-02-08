@@ -15,8 +15,8 @@ PROGRAM double
 
   double precision :: scl=1d-8
 
-  if (mpi_rnk==0) print*, 'initialising...'
   call mpi_precompute()
+  if (mpi_rnk==0) print*, 'initialising...'
   call par_precompute()
   call var_precompute()
   call tra_precompute()
