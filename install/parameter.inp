@@ -1,0 +1,24 @@
+! Status for restarting runs
+&status
+io_save1 = 0     ! If restarting from previous run, write the number of the statefile used for input
+turb_save2 = 0   ! If restarting from previous run, write the number of the last turb****.cdf.dat 
+/
+
+
+! Parameters for the simulation
+&parameters
+d_Re = 180.0        ! Reynolds number
+d_Lx = 180.0        ! Size in x-direction (units of half the channel height)
+d_Lz = 80.0         ! Size in z-direction (units of half the channel height)
+i_save_rate1 = 500  !9000 ! How many time-steps between state****.cdf.dat output (also spec files)
+i_save_rate2 = 10   !230  ! How many time-steps between writing to vel_energy.dat file (turb****.cdf.dat outputs every 100*turb_save2 tsteps)
+i_maxtstep = 100000000   ! Max number of time-steps to run before stopping the program
+d_cpuhours = 0.24   !11.8   ! How long (real time) to run your simulation for (not a function of how many cpu's you are using)
+d_dt = 0.001      ! dt, which is fixed
+d_time = -1.0     ! If d_time < 0 and io_save1 = 0 (fresh restart), then d_time = 0. If d_time < 0 and io_save1 >0, then it will read the time from the statefile state{io_save1}.cdf.dat. Else, if d_time>=0, it will set the time to be d_time regardless of whether you're starting from zero or not.
+i_tstep = 0     ! If d_time < 0, then either tstep=0 or it is read from a state.cdf.dat file. If d_time >= 0, then tstep = i_tstep.
+d_HYPO = 0.0      ! Hypoviscosity coefficient
+i_PHYPO = 2          ! Hypoviscosity exponent
+d_drag = 1.e-2       ! Drag coefficient
+d_vdrag = 0.0       ! ?? If non-zero then can reduce drag from potential flow?
+/ 
