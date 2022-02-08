@@ -1,40 +1,42 @@
 #include "../parallel.h"
  module parameters
+ use mpif
 !***************************************************************************
    implicit none
    save
 
-   double precision            ::  d_Re         = 200d0!!67.8d0!875d0
+   double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM	        = 32!4096!512!2048!4096
-   integer,          parameter :: i_NN          = 32!1024!512!2048!512!2048!4096
+   integer,          parameter :: i_MM          = 512!4096!512!2048!4096 !Streamwise
+   integer,          parameter :: i_NN          = 256!1024!512!2048!4096 !Spanwise
    integer,          parameter :: i_K0          = 4
    
    double precision, parameter :: d_PI          = 3.1415926535897931d0
-   double precision, parameter :: d_Lx          = 12d0!4096d0!960d0!16d0
-   double precision, parameter :: d_Lz          = 6d0!4096d0!1024d0!4096d0!960d0!1024d0
-   double precision, parameter :: d_alpha       = 2d0*d_PI/d_Lx!0.5d0
-   double precision, parameter :: d_gamma       = 2d0*d_PI/d_Lz!0.5d0
+   double precision            :: d_Lx          != 180d0!4096d0!960d0 !Streamwise
+   double precision            :: d_Lz          != 80d0!4096d0!1024d0!960d0! Spanwise
+   double precision            :: d_alpha       != 2d0*d_PI/d_Lx!0.5d0
+   double precision            :: d_gamma       != 2d0*d_PI/d_Lz!0.5d0
 
    logical,          parameter :: s_reflect     = .false.!.TRUE.!.FALSE. 
    logical,          parameter :: s_uvreflect   = .FALSE.
    logical,          parameter :: s_wreflect    = .false.
 
-   integer, parameter          :: i_maxtstep    = 1500000!1d8
-   integer, parameter          :: i_save_rate1  = 1000!5000!12500!1d8!50000!100000!5000
-   integer, parameter          :: i_save_rate2  = 50!25!25!50 
+   integer                     :: i_maxtstep    != 1d8
+   integer                     :: i_save_rate1  != 9000!5000!12500!1d8!50000!100000!5000
+   integer                     :: i_save_rate2  != 230!25!25!50 
    double precision, parameter :: d_maxt        = -1d0
-   double precision, parameter :: d_cpuhours    = 99.7d0!1.7d0!19.6d0!0.98d0!1d99 !90d0
-   double precision, parameter :: d_time        = -1d0 !0d0
+   double precision            :: d_cpuhours    != 11.8d0!1.7d0!19.6d0!0.98d0!1d99 !90d0
+   double precision            :: d_time        != -1d0 !0d0  ! if d_time < 0, then it reads it from the statefile.
+   integer                     :: i_tstep       != 1d8
    double precision, parameter :: d_thdeg       = 0d0!24d0
-   double precision, parameter :: d_dt          = 0.01d0!0.02d0
+   double precision            :: d_dt          != 0.00025d0!0.01d0!0.02d0
    double precision, parameter :: d_minE        = 1d-10
 
-   double precision, parameter :: d_HYPO        = 0d0!1d-6 !1d-01
-   integer, parameter          :: i_PHYPO       = 2
-   double precision, parameter :: d_drag        = 1d-2 !1d-01
-   double precision, parameter :: d_vdrag       = 0d0
+   double precision            :: d_HYPO        != 0d0!1d-6 !1d-01
+   integer                     :: i_PHYPO       != 2
+   double precision            :: d_drag        != 1d-2 !1d-01
+   double precision            :: d_vdrag       != 0d0
    logical,          parameter :: s_dragall     = .true.!.false.
 
    logical, parameter          :: s_HIS         = .FALSE. !HISTORY DATA
@@ -47,7 +49,7 @@
    !---------------------------------------------------------------------------
    !  Fixed parameters
    !---------------------------------------------------------------------------
-   integer,	     parameter :: i_N           = 2*(i_NN-1) + 1
+   integer,          parameter :: i_N           = 2*(i_NN-1) + 1
    integer,          parameter :: i_K           = 2*i_K0-1
    integer,          parameter :: i_KK          = 3*i_K0-1
    integer,          parameter :: i_M           = 2*(i_MM-1)+1
@@ -81,12 +83,41 @@ contains
 
    subroutine par_precompute()
       integer :: itmp
-      if (d_time > 0d0) then
+
+     ! Load parameters from file 'parameter.inp'
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_time,i_tstep, d_dt, d_HYPO, i_PHYPO, d_drag, d_vdrag
+       if (mpi_rnk==0) then
+          open(1,file='parameter.inp',status='unknown',form='formatted')
+          read(1,NML=parameters)
+          close(1)
+      endif
+#ifdef _MPI
+      call mpi_bcast(d_Re,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_Lx,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_Lz,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_save_rate1,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_save_rate2,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_maxtstep,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_cpuhours,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_time,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_tstep,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_dt,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_HYPO,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_PHYPO,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_drag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_vdrag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+#endif
+
+      d_alpha = 2d0*d_PI/d_Lx
+      d_gamma = 2d0*d_PI/d_Lz 
+
+      if (d_time.ge.0d0) then
          tim_t=d_time
+         tim_step= i_tstep
       else
          tim_t=0d0
+         tim_step=0
       end if
-      tim_step=0
       itmp=mod(i_M,_Np)
 !      if(itmp /= 0) stop 'mpi_precompute: incorrect num procs, M'
       itmp=mod(i_NN,_Np)
