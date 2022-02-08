@@ -16,6 +16,8 @@ PROGRAM MAIN
   real :: d_start, d_stop
    
    call initialise()
+   
+   if (mpi_rnk==0) print*, 'time',tim_t,' tstep', tim_step,'  io_save1', io_save1
 
    do while(.not.terminate())
       call var_null()
@@ -45,7 +47,6 @@ PROGRAM MAIN
       call vel_precompute()
       call  io_precompute()
 
-
       if(mpi_rnk==0)  print*, 'loading state...'
 
        call clk_time(d_start)
@@ -74,7 +75,6 @@ PROGRAM MAIN
          write(99,*) 'This file indicates a job running in this directory.'
          write(99,*) 'Delete this file to cleanly terminate the process.'
          close(99)
-         print*, 'timestepping.....'
       end if
 
       call clk_time(d_start)
@@ -83,6 +83,7 @@ PROGRAM MAIN
       call mpi_barrier(mpi_comm_world, mpi_er)
 #endif
 
+      if (mpi_rnk==0)   print*, 'timestepping.....'
 	end subroutine initialise
 
 !-------------------------------------------------------------------------
