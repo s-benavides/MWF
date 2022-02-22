@@ -15,8 +15,8 @@
 #SBATCH --ntasks-per-node=16
 #SBATCH --constraint=centos7
 ##SBATCH --mem-per-cpu=3000
-#SBATCH --time=0:20:00
-##SBATCH --time=12:00:00
+##SBATCH --time=0:15:00
+#SBATCH --time=12:00:00
 #SBATCH -J Lx180z80  # sensible name for the job
 
 ## load up the correct modules, if required
@@ -28,8 +28,8 @@ module load engaging/openmpi/2.0.3
 #SBATCH --error=job_%j.err
 
 # Run scripts
-mpiexec -n 32 ./randIC.out
-mv state0000.cdf.dat state.cdf.in
+##mpiexec -n 32 ./randIC.out
+##mv state0000.cdf.dat state.cdf.in
 mpiexec -n 32 ./main.out
 
 

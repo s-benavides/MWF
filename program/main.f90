@@ -19,6 +19,7 @@ PROGRAM MAIN
    
    if (mpi_rnk==0) print*, 'time',tim_t,' tstep', tim_step,'  io_save1', io_save1
 
+   if (mpi_rnk==0) print*, 'Final Re:', d_Re
    do while(.not.terminate())
       call var_null()
       call vel_imposesym()
@@ -27,6 +28,7 @@ PROGRAM MAIN
       tim_t    = tim_t    + d_dt
       tim_step = tim_step + 1
    end do
+   if (mpi_rnk==0) print*, 'Final Re:', d_Re
    call cleanup()
 
    contains
