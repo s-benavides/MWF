@@ -1,7 +1,7 @@
 ! Status for restarting runs
 &status
-io_save1 = 12     ! If restarting from previous run, write the number of the statefile used for input
-turb_save2 = 4   ! If restarting from previous run, write the number of the last turb****.cdf.dat 
+io_save1 = 0     ! If restarting from previous run, write the number of the statefile used for input
+turb_save2 = 0   ! If restarting from previous run, write the number of the last turb****.cdf.dat 
 /
 
 
