@@ -11,10 +11,13 @@
    integer,          parameter :: i_MM          = 512!4096!512!2048!4096 !Streamwise
    integer,          parameter :: i_NN          = 256!1024!512!2048!4096 !Spanwise
    integer,          parameter :: i_K0          = 4
+   integer                     :: i_kICx        ! Parameter for random initial  condition
+   integer                     :: i_KICz        ! Parameter for random initial condition
    
    double precision, parameter :: d_PI          = 3.1415926535897931d0
    double precision            :: d_Lx          != 180d0!4096d0!960d0 !Streamwise
    double precision            :: d_Lz          != 80d0!4096d0!1024d0!960d0! Spanwise
+   double precision            :: d_E0          ! Initial condition KE
    double precision            :: d_alpha       != 2d0*d_PI/d_Lx!0.5d0
    double precision            :: d_gamma       != 2d0*d_PI/d_Lz!0.5d0
 
@@ -85,7 +88,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_time,i_tstep, d_dt, d_HYPO, i_PHYPO, d_drag, d_vdrag
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_time,i_tstep, d_dt, d_HYPO, i_PHYPO, d_drag, d_vdrag
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -95,6 +98,9 @@ contains
       call mpi_bcast(d_Re,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_Lx,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_Lz,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_E0,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_kICx,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_kICz,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_save_rate1,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_save_rate2,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_maxtstep,1,mpi_integer,0,mpi_comm_world,mpi_er)
