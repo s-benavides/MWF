@@ -284,6 +284,33 @@ _loop_mn_end
       c%Im(k,m,n)=r!RAND()
       _loop_kmn_end
     end subroutine var_randmpt
+
+    subroutine var_randphasempt(c)
+     type (mpt), intent(out) :: c
+!      integer,parameter :: seed = 82342
+      double precision :: r
+      _loop_kmn_vars
+      _loop_kmn_begin
+      mm = m
+      if (mm > i_MM1) mm = m - i_M 
+      if ((abs(mm).lt.i_kICx).and.(abs(nn).lt.i_kICz)) then
+          call RANDOM_NUMBER(r)
+          c%Re(k,m,n)=cos(2*d_PI*r)
+          c%Im(k,m,n)=sin(2*d_Pi*r)
+       else
+          c%Re(k,m,n)=0d0
+          c%Im(k,m,n)=0d0
+       end if
+       if (nn.eq.0) then
+           c%Re(k,m,n)=0d0
+           c%Im(k,m,n)=0d0
+       end if
+       if (mm.eq.0) then
+           c%Re(k,m,n)=0d0
+           c%Im(k,m,n)=0d0
+       end if
+      _loop_kmn_end
+    end subroutine var_randphasempt
     
     subroutine var_simplempt(c)
       type (mpt), intent(out) :: c
