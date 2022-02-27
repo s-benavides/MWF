@@ -24,6 +24,10 @@
 !--------------------------------------------------------------------------
    subroutine io_precompute()
      character(4) :: cnum
+     type (phys)   :: vp
+     double precision :: E
+     _loop_kmn_vars
+
      ! Check
      ! Namelist for input files
      NAMELIST / status / io_save1, turb_save2
@@ -36,7 +40,33 @@
       call mpi_bcast(io_save1,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(turb_save2,1,mpi_integer,0,mpi_comm_world,mpi_er)
 #endif
-      if (io_save1==0) then  
+      io_KE    = 20
+      io_hi    = 0      
+      if (s_HIS) &
+           io_hi    = 30
+
+       if (io_save1==0) then 
+        ! Make initial condition and save it, then load it as state.cdf.in 
+        call var_randphasempt(vel_c)
+        !Calculate energy of this IC
+        call vel_mpt2phys(vel_c,vp)
+        call vel_energy(vp,E)
+        ! Now renormalize and multiply by energy we want.
+        _loop_kmn_begin
+            if ((n+var_N%pH0)==0) cycle
+            if (m==0) cycle
+            vel_c%Re(k,m,n) = dsqrt(d_E0)*vel_c%Re(k,m,n)/dsqrt(E)
+            vel_c%Im(k,m,n) = dsqrt(d_E0)*vel_c%Im(k,m,n)/dsqrt(E)
+        _loop_kmn_end
+        call vel_mpt2phys(vel_c,vp)
+        call vel_energy(vp,E)
+
+        call io_save_IC()
+        
+#ifdef _MPI
+        call mpi_barrier(mpi_comm_world, mpi_er)
+#endif
+
         io_statefile = 'state.cdf.in'
       else
         write(cnum,'(I4.4)') io_save1
@@ -45,10 +75,6 @@
         endif
         io_statefile = 'state'//cnum//'.cdf.dat'
       endif
-      io_KE    = 20
-      io_hi    = 0      
-      if (s_HIS) &
-           io_hi    = 30
    end subroutine io_precompute 
  
 
@@ -230,7 +256,7 @@
       
       a%Re = 0d0
       a%Im = 0d0
-
+      
       e=nf90_get_var(f,i, a%Re(:,:,:),start=(/1,1,var_N%pH0+1,1/))
       e=nf90_get_var(f,i, a%Im(:,:,:),start=(/1,1,var_N%pH0+1,2/))
       
@@ -287,6 +313,44 @@
 !--------------------------------------------------------------------------
 !  Save state
 !--------------------------------------------------------------------------
+   subroutine io_save_IC()
+      character(4) :: cnum
+      integer :: e, f
+      integer :: md,nd,kd, ReImd, dims(4)
+      integer :: ss
+
+      write(cnum,'(I4.4)') io_save1
+
+      if(mpi_rnk==0) then
+         print*, ' saving initial condition'
+         e=nf90_create('state.cdf.in', nf90_clobber, f)
+         e=nf90_put_att(f, nf90_global, 't', tim_t)
+         e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
+         e=nf90_put_att(f, nf90_global, 'Re', d_Re)
+         e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
+         e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
+
+         e=nf90_def_dim(f, 'N', i_NN, nd)
+         e=nf90_def_dim(f, 'M', i_M, md)
+         e=nf90_def_dim(f, 'K', i_K, kd)
+         e=nf90_def_dim(f, 'ReIm', 2, ReImd)
+
+         dims = (/kd,md,nd,ReImd/)
+         call io_define_mpt(f, 'mpt', dims, ss)
+
+         e=nf90_enddef(f)
+      end if
+
+      call io_save_mpt(f,ss, vel_c)
+
+      if(mpi_rnk==0)  &
+         e=nf90_close(f)
+
+   end subroutine io_save_IC
+
+!--------------------------------------------------------------------------
+!  Save state
+!--------------------------------------------------------------------------
    subroutine io_save_state()
       character(4) :: cnum
       integer :: e, f
@@ -298,7 +362,6 @@
       if(mpi_rnk==0) then
          print*, ' saving state'//cnum//'  t=', tim_t
          e=nf90_create('state'//cnum//'.cdf.dat', nf90_clobber, f)
-
          e=nf90_put_att(f, nf90_global, 't', tim_t)
          e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
          e=nf90_put_att(f, nf90_global, 'Re', d_Re)
