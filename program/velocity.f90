@@ -146,18 +146,15 @@ contains
     double precision, intent(out) :: e
     double precision :: e_
     _loop_mn_vars
-    e=0
+    e_=0
     _loop_phy_begin
-    e = e + epos(a%Re(:,n,m))
+    e_ = e_ + epos(a%Re(:,n,m))
     _loop_mn_end
+    e_ = e_ /( i_3M * i_3N) 
 #ifdef _MPI
-    call mpi_allreduce( e, e_, 1, mpi_double_precision,  &
+    call mpi_allreduce( e_, e, 1, mpi_double_precision,  &
          mpi_sum, mpi_comm_world, mpi_er)
-    if(mpi_rnk/=0) return
-    e = e_
 #endif
-!    e = e * d_alpha * d_gamma /( 4 * d_PI * d_PI * i_3M * i_3N) 
-    e = e /( i_3M * i_3N) 
 
   end subroutine vel_energy
 
