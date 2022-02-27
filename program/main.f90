@@ -18,8 +18,6 @@ PROGRAM MAIN
    call initialise()
    
    if (mpi_rnk==0) print*, 'time',tim_t,' tstep', tim_step,'  io_save1', io_save1
-   !!if (mpi_rnk==0) print*, 'Initial Re:', d_Re
-   print*, 'Initial Re:', d_Re, 'my rank', mpi_rnk
    do while(.not.terminate())
       call var_null()
       call vel_imposesym()
@@ -28,8 +26,6 @@ PROGRAM MAIN
       tim_t    = tim_t    + d_dt
       tim_step = tim_step + 1
    end do
-   !!if (mpi_rnk==0) print*, 'Final Re:', d_Re
-   print*, 'Final Re:', d_Re, 'my rank', mpi_rnk
    call cleanup()
 
    contains
