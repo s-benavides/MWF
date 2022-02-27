@@ -49,10 +49,10 @@
    !---------------------------------------------------------------------------
    !  Fixed parameters
    !---------------------------------------------------------------------------
-   integer,          parameter :: i_N           = 2*(i_NN-1) + 1
+   integer,          parameter :: i_N           = 2*(i_NN-1)
    integer,          parameter :: i_K           = 2*i_K0-1
    integer,          parameter :: i_KK          = 3*i_K0-1
-   integer,          parameter :: i_M           = 2*(i_MM-1)+1
+   integer,          parameter :: i_M           = 2*(i_MM-1)
    integer,          parameter :: i_Ny          = 15
    double precision, parameter :: d_beta        = d_PI/2d0
    double precision, parameter :: d_theta       = d_thdeg/180d0*d_PI
@@ -118,14 +118,6 @@ contains
          tim_t=0d0
          tim_step=0
       end if
-      itmp=mod(i_M,_Np)
-!      if(itmp /= 0) stop 'mpi_precompute: incorrect num procs, M'
-      itmp=mod(i_NN,_Np)
-!      if(itmp /= 0) stop 'mpi_precompute: incorrect num procs, N'
-
-!      print*, "i_Mp : ",i_Mp
-!      print*, "i_Np : ",i_Np
-
 
    end subroutine par_precompute
  
