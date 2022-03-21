@@ -32,7 +32,7 @@
    double precision            :: d_cpuhours    != 11.8d0!1.7d0!19.6d0!0.98d0!1d99 !90d0
    double precision            :: d_time        != -1d0 !0d0  ! if d_time < 0, then it reads it from the statefile.
    integer                     :: i_tstep       != 1d8
-   double precision, parameter :: d_thdeg       = 0d0!24d0
+   double precision            :: d_thdeg       != 0d0!24d0
    double precision            :: d_dt          != 0.00025d0!0.01d0!0.02d0
    double precision, parameter :: d_minE        = 1d-10
 
@@ -58,7 +58,7 @@
    integer,          parameter :: i_M           = 2*(i_MM-1)
    integer,          parameter :: i_Ny          = 15
    double precision, parameter :: d_beta        = d_PI/2d0
-   double precision, parameter :: d_theta       = d_thdeg/180d0*d_PI
+   double precision            :: d_theta       !!= d_thdeg/180d0*d_PI
 
    integer,          parameter :: i_3M          = 3*i_MM
    integer,          parameter :: i_3N          = 3*i_NN
@@ -88,7 +88,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_time,i_tstep, d_dt, d_HYPO, i_PHYPO, d_drag, d_vdrag
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -105,15 +105,17 @@ contains
       call mpi_bcast(i_save_rate2,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_maxtstep,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_cpuhours,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_dt,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_time,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_tstep,1,mpi_integer,0,mpi_comm_world,mpi_er)
-      call mpi_bcast(d_dt,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_thdeg,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_HYPO,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_PHYPO,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_drag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_vdrag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
 #endif
 
+      d_theta = d_thdeg/180d0*d_PI
       d_alpha = 2d0*d_PI/d_Lx
       d_gamma = 2d0*d_PI/d_Lz 
 
