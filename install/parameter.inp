@@ -20,6 +20,7 @@ d_cpuhours = 11.8   ! How long (real time) to run your simulation for (not a fun
 d_dt = 0.0005       ! dt, which is fixed
 d_time = -1.0       ! If d_time < 0 and io_save1 = 0 (fresh restart), then d_time = 0. If d_time < 0 and io_save1 >0, then it will read the time from the statefile state{io_save1}.cdf.dat. Else, if d_time>=0, it will set the time to be d_time regardless of whether you're starting from zero or not.
 i_tstep = 0         ! If d_time < 0, then either tstep=0 or it is read from a state.cdf.dat file. If d_time >= 0, then tstep = i_tstep.
+d_thdeg = 0.0       ! Mean flow angle with x
 d_HYPO = 0.0        ! Hypoviscosity coefficient
 i_PHYPO = 2         ! Hypoviscosity exponent
 d_drag = 1.e-2      ! Drag coefficient
