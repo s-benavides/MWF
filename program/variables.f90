@@ -9,6 +9,10 @@
       double precision     :: Re(i_KK,0:i_3N-1, 0:i_Mp-1)
    end type phys
    
+   type phys_xavg
+      double precision     :: Re(i_KK,0:i_3N-1)
+   end type phys_xavg
+   
    type mpt
       double precision     :: Re(i_K,0:i_M1, 0:i_Np-1)
       double precision     :: Im(i_K,0:i_M1, 0:i_Np-1)
