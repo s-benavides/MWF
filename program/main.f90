@@ -21,10 +21,11 @@ PROGRAM MAIN
    do while(.not.terminate())
       call var_null()
       call vel_imposesym()
+      if (s_restress) call vel_restress_calc() 
       call io_write2files()
       call vel_TS()
-      tim_t    = tim_t    + d_dt
-      tim_step = tim_step + 1
+      tim_t         = tim_t    + d_dt
+      tim_step      = tim_step + 1
    end do
    call cleanup()
 
@@ -75,6 +76,10 @@ PROGRAM MAIN
          write(99,*) 'Delete this file to cleanly terminate the process.'
          close(99)
       end if
+    
+      ! Set Reynolds averaging counts to zero 
+      i_count = 0 
+      d_avg_time = 0.0
 
       call clk_time(d_start)
 
