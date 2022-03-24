@@ -9,14 +9,6 @@
       double precision     :: Re(i_KK,0:i_3N-1, 0:i_Mp-1)
    end type phys
    
-   type phys_xavg_even
-      double precision     :: Re(i_K0,0:i_3N-1)
-   end type phys_xavg_even
-   
-   type phys_xavg_odd
-      double precision     :: Re(i_K0-1,0:i_3N-1)
-   end type phys_xavg_odd
-   
    type mpt
       double precision     :: Re(i_K,0:i_M1, 0:i_Np-1)
       double precision     :: Im(i_K,0:i_M1, 0:i_Np-1)
@@ -26,6 +18,17 @@
       double precision     :: Re(i_KK,0:i_M1, 0:i_Np-1)
       double precision     :: Im(i_KK,0:i_M1, 0:i_Np-1)
    end type spec
+   
+   type spec_xavg_even
+      double precision     :: Re(i_K0, 0:i_Np-1)
+      double precision     :: Im(i_K0, 0:i_Np-1)
+   end type spec_xavg_even
+   
+   type spec_xavg_odd
+      double precision     :: Re(i_K0-1, 0:i_Np-1)
+      double precision     :: Im(i_K0-1, 0:i_Np-1)
+   end type spec_xavg_odd
+   
    
    type tran
       double precision     :: Re(i_KK,0:i_NN1, 0:i_Mp-1)
