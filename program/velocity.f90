@@ -14,6 +14,8 @@ module velocity
   
   type (phys) :: vel_p
   type (mpt)  :: vel_c,vel_c2,vel_onl,vel_nl,lhs,rhs
+  type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean
+  type(spec_xavg_odd) :: vmean,uvmean,wvmean
   logical :: nst
   
 contains
@@ -175,6 +177,140 @@ contains
     end do
     
   end subroutine vel_history
+
+  subroutine vel_restress_calc()
+  !! This subroutine takes the current fields and updates the average values and the Reynolds stresses
+  !! These are x-averaged, and the time-mean is updated.
+  !! Uses global variables: i_count, vel_c as inputs. and umean,vmean,wmean,
+  !! uumean,uvmean,uwmean,vvmean,wvmean,wwmean as outputs. The outputs are of the
+  !! type 'spec_xavg_even' (shape = (i_K0,0:i_Np-1), uumean, etc.), 'spec_xavg_odd' (shape = (i_K1,0:i_Np-1), uvmean, etc.)
+
+    type(spec) :: u,up,nl_tmp
+    type(spec_xavg_even) :: ubar,wbar,uubar,uwbar,wwbar,vvbar
+    type(spec_xavg_odd) :: vbar,uvbar,wvbar
+    type(phys) :: p,mult_aux
+    _loop_mn_vars
+
+    ! Updates the count and averaging window
+    i_count = i_count + 1
+    d_avg_time = d_avg_time + d_dt
+
+    ! Takes current mpt field and converts to phys
+    call var_mpt2spec(vel_c,u)
+    
+    ! -------- MEAN VELOCITIES -------
+    ! Calculate the x-avg
+    ubar%Re = reshape(u%Re(1:i_K0,0,:),shape(ubar%Re))
+    ubar%Im = reshape(u%Im(1:i_K0,0,:),shape(ubar%Im))
+    vbar%Re = reshape(u%Re(i_K0+1:2*i_K0-1,0,:),shape(vbar%Re))
+    vbar%Im = reshape(u%Im(i_K0+1:2*i_K0-1,0,:),shape(vbar%Im))
+    wbar%Re = reshape(u%Re(2*i_K0:3*i_K0-1,0,:),shape(wbar%Re))
+    wbar%Im = reshape(u%Im(2*i_K0:3*i_K0-1,0,:),shape(wbar%Im))
+
+    ! Then update the mean
+    umean%Re = umean%Re + (ubar%Re - umean%Re)/i_count  ! <u>_n
+    umean%Im = umean%Im + (ubar%Im - umean%Im)/i_count  ! <u>_n
+    vmean%Re = vmean%Re + (vbar%Re - vmean%Re)/i_count  ! <v>_n
+    vmean%Im = vmean%Im + (vbar%Im - vmean%Im)/i_count  ! <v>_n
+    wmean%Re = wmean%Re + (wbar%Re - wmean%Re)/i_count  ! <w>_n
+    wmean%Im = wmean%Im + (wbar%Im - wmean%Im)/i_count  ! <w>_n
+
+    ! -------- REYNOLDS STRESSES  -------
+    ! <u'u'>, <u'v'> and <u'w'>
+    ! Calculate u' = u-umean, etc
+    do m = 0,i_M1
+        up%Re(1:i_K0,m,:) = u%Re(1:i_K0,m,:) - umean%Re
+        up%Im(1:i_K0,m,:) = u%Im(1:i_K0,m,:) - umean%Im
+        up%Re(i_K0+1:2*i_K0-1,m,:) = u%Re(i_K0+1:2*i_K0-1,m,:) - vmean%Re 
+        up%Im(i_K0+1:2*i_K0-1,m,:) = u%Im(i_K0+1:2*i_K0-1,m,:) - vmean%Im
+        up%Re(2*i_K0:3*i_K0-1,m,:) = u%Re(2*i_K0:3*i_K0-1,m,:) - wmean%Re
+        up%Im(2*i_K0:3*i_K0-1,m,:) = u%Im(2*i_K0:3*i_K0-1,m,:) - wmean%Im
+    end do
+    
+    ! Calculate u'u', u'v', u'w'
+    call tra_spec2phys(up,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)=nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) ! u'u'
+    mult_aux%Re(i_K0+1:2*i_K0-1,n,m)=nluv(p%Re(1:i_K0,n,m),p%Re(i_K0+1:2*i_K0-1,n,m)) ! u'v'
+    mult_aux%Re(2*i_K0:3*i_K0-1,n,m)=nluw(p%Re(1:i_K0,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! u'w'
+    _loop_mn_end
+    
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! x-average to get bar(u'u') etc.
+    uubar%Re = reshape(nl_tmp%Re(1:i_K0,0,:),shape(uubar%Re))
+    uubar%Im = reshape(nl_tmp%Im(1:i_K0,0,:),shape(uubar%Im))
+    uvbar%Re = reshape(nl_tmp%Re(i_K0+1:2*i_K0-1,0,:),shape(uvbar%Re))
+    uvbar%Im = reshape(nl_tmp%Im(i_K0+1:2*i_K0-1,0,:),shape(uvbar%Im))
+    uwbar%Re = reshape(nl_tmp%Re(2*i_K0:3*i_K0-1,0,:),shape(uwbar%Re))
+    uwbar%Im = reshape(nl_tmp%Im(2*i_K0:3*i_K0-1,0,:),shape(uwbar%Im))
+
+    ! Update the mean
+    uumean%Re = uumean%Re + (uubar%Re - uumean%Re)/i_count ! <u'u'>
+    uumean%Im = uumean%Im + (uubar%Im - uumean%Im)/i_count ! <u'u'>
+    uvmean%Re = uvmean%Re + (uvbar%Re - uvmean%Re)/i_count ! <u'v'>
+    uvmean%Im = uvmean%Im + (uvbar%Im - uvmean%Im)/i_count ! <u'v'>
+    uwmean%Re = uwmean%Re + (uwbar%Re - uwmean%Re)/i_count ! <u'w'>
+    uwmean%Im = uwmean%Im + (uwbar%Im - uwmean%Im)/i_count ! <u'w'>
+
+    ! Let's do the same, but for w'w', v'w'
+    _loop_phy_begin
+    mult_aux%Re(i_K0+1:2*i_K0-1,n,m)=nluv(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(i_K0+1:2*i_K0-1,n,m)) ! w'v'
+    mult_aux%Re(2*i_K0:3*i_K0-1,n,m)=nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w'w'
+    _loop_mn_end
+    
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! x-average to get bar(u'u') etc.
+    wvbar%Re = reshape(nl_tmp%Re(i_K0+1:2*i_K0-1,0,:),shape(wvbar%Re))
+    wvbar%Im = reshape(nl_tmp%Im(i_K0+1:2*i_K0-1,0,:),shape(wvbar%Im))
+    wwbar%Re = reshape(nl_tmp%Re(2*i_K0:3*i_K0-1,0,:),shape(wwbar%Re))
+    wwbar%Im = reshape(nl_tmp%Im(2*i_K0:3*i_K0-1,0,:),shape(wwbar%Im))
+
+    ! Update the mean
+    wvmean%Re = wvmean%Re + (wvbar%Re - wvmean%Re)/i_count ! <w'v'>
+    wvmean%Im = wvmean%Im + (wvbar%Im - wvmean%Im)/i_count ! <w'v'>
+    wwmean%Re = wwmean%Re + (wwbar%Re - wwmean%Re)/i_count ! <w'w'>
+    wwmean%Im = wwmean%Im + (wwbar%Im - wwmean%Im)/i_count ! <w'w'>
+
+    ! And finally for v'v'
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)=nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) ! v'v'
+    _loop_mn_end
+    
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! x-average to get bar(u'u') etc.
+    vvbar%Re = reshape(nl_tmp%Re(1:i_K0,0,:),shape(vvbar%Re))
+    vvbar%Im = reshape(nl_tmp%Im(1:i_K0,0,:),shape(vvbar%Im))
+
+    ! Update the mean
+    vvmean%Re = vvmean%Re + (vvbar%Re - vvmean%Re)/i_count ! <v'v'>
+    vvmean%Im = vvmean%Im + (vvbar%Im - vvmean%Im)/i_count ! <v'v'>
+
+  end subroutine vel_restress_calc
+
+  subroutine vel_restress_reset()
+    umean%Re = 0.0*umean%Re
+    umean%Im = 0.0*umean%Im
+    vmean%Re = 0.0*vmean%Re
+    vmean%Im = 0.0*vmean%Im
+    wmean%Re = 0.0*wmean%Re
+    wmean%Im = 0.0*wmean%Im
+    uumean%Re = 0.0*uumean%Re
+    uumean%Im = 0.0*uumean%Im
+    uvmean%Re = 0.0*uvmean%Re
+    uvmean%Im = 0.0*uvmean%Im
+    uwmean%Re = 0.0*uwmean%Re
+    uwmean%Im = 0.0*uwmean%Im
+    wvmean%Re = 0.0*wvmean%Re
+    wvmean%Im = 0.0*wvmean%Im
+    wwmean%Re = 0.0*wwmean%Re
+    wwmean%Im = 0.0*wwmean%Im
+    vvmean%Re = 0.0*vvmean%Re
+    vvmean%Im = 0.0*vvmean%Im
+  end subroutine vel_restress_reset
 
 end module velocity
 
