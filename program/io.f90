@@ -165,7 +165,7 @@
       end if
 
      ! Reynolds stresses
-     if ((d_avg_time > d_avg_window).and.(s_restress)) then
+     if ((d_avg_time > d_avg_window).and.(s_restress_xavg)) then
        ! Exports Reynolds averages and stresses
        call io_save_spec_xavg()
        
