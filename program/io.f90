@@ -43,6 +43,7 @@
       call mpi_bcast(turb_save2,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_restress_save,1,mpi_integer,0,mpi_comm_world,mpi_er)
 #endif
+      i_restress_save = i_restress_save + 1 ! So that it won't overwrite
       io_KE    = 20
       io_hi    = 0      
       if (s_HIS) &
