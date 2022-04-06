@@ -21,7 +21,9 @@ PROGRAM MAIN
    do while(.not.terminate())
       call var_null()
       call vel_imposesym()
+      ! Update Reynolds average and stress calculations
       if (s_restress_xavg) call vel_restress_calc() 
+      if (s_restress_2d) call vel_restress_2d_calc() 
       call io_write2files()
       call vel_TS()
       tim_t         = tim_t    + d_dt
