@@ -50,8 +50,10 @@
    integer, parameter          :: i_MT          = 10!Number of times to average over
    integer, parameter          :: i_WT          = 10!20  ! Gaps of MT to make between output
    ! Reynolds stress paramters (to be read from parameter.inp)
-   logical                     :: s_restress_xavg ! If true, calculates and outputs x-averaged reynolds stresses
-   double precision            :: d_avg_window    ! Time over which to average reynolds stresses
+   logical                     :: s_restress_xavg ! If true, calculates and outputs x-averaged reynolds stresses based on time-average
+   logical                     :: s_restress_2d   ! If true, calculates and outputs 2D reynolds stresses based on time-average
+   logical                     :: s_restress_filt ! If true, calculates and outputs 2D reynolds stresses based on filtering, not time-average
+   double precision            :: d_avg_window    ! Time over which to average and/or output reynolds stresses
    double precision            :: d_avg_time      ! Active count for amount of time currently in average
    integer                     :: i_restress_save ! Counter for the output number of the reynolds stress io_write
    integer                     :: i_count         ! Counter for number of iterations in current averaging window, used in vel_restress_calc
@@ -95,7 +97,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, d_avg_window
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, d_avg_window
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -121,6 +123,8 @@ contains
       call mpi_bcast(d_drag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_vdrag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(s_restress_xavg,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_restress_2d,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_restress_filt,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_avg_window,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
 #endif
 
