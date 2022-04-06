@@ -9,7 +9,7 @@
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
    integer,          parameter :: i_MM          = 64!4096!512!2048!4096 !Streamwise
-   integer,          parameter :: i_NN          = 512!1024!512!2048!4096 !Spanwise
+   integer,          parameter :: i_NN          = 180!1024!512!2048!4096 !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
@@ -50,7 +50,7 @@
    integer, parameter          :: i_MT          = 10!Number of times to average over
    integer, parameter          :: i_WT          = 10!20  ! Gaps of MT to make between output
    ! Reynolds stress paramters (to be read from parameter.inp)
-   logical                     :: s_restress      ! If true, calculates and outputs reynolds stresses
+   logical                     :: s_restress_xavg ! If true, calculates and outputs x-averaged reynolds stresses
    double precision            :: d_avg_window    ! Time over which to average reynolds stresses
    double precision            :: d_avg_time      ! Active count for amount of time currently in average
    integer                     :: i_restress_save ! Counter for the output number of the reynolds stress io_write
@@ -95,7 +95,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress, d_avg_window
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, d_avg_window
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -120,7 +120,7 @@ contains
       call mpi_bcast(i_PHYPO,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_drag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_vdrag,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
-      call mpi_bcast(s_restress,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_restress_xavg,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_avg_window,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
 #endif
 
