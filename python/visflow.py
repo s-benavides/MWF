@@ -52,5 +52,6 @@ for ii,run in enumerate(runs):
     field = input("Which field? U,V,W ")
     yloc = input("Which ylocation? ")
     yloc = float(yloc)
+    state = str(state).zfill(4)
     aa.plot_state(idir+run+'/state'+state+'.cdf.dat',field,yloc,figwidth=10)
         

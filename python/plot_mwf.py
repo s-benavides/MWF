@@ -65,9 +65,9 @@ for ii,run in enumerate(runs):
     print(run)
     state_outs = sorted(glob.glob(idir+run+'/state*'))
 #     print(state_outs[:])
-    for state_out in np.array(state_outs)[-6:]:
+    for state_out in np.array(state_outs)[-2:]:
         print(state_out)
-        aa.plot_state(state_out,'U',0.0,figwidth=10)
+        aa.plot_XZ(state_out,'U',0.0,figwidth=10)
         
 # # figwidths=[10,10,10]
 # for ii,run in enumerate(runs):
