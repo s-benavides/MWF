@@ -53,6 +53,7 @@
    logical                     :: s_restress_xavg ! If true, calculates and outputs x-averaged reynolds stresses based on time-average
    logical                     :: s_restress_2d   ! If true, calculates and outputs 2D reynolds stresses based on time-average
    logical                     :: s_restress_filt ! If true, calculates and outputs 2D reynolds stresses based on filtering, not time-average
+   double precision            :: d_l_c           ! If s_restress_filt, this is the cut-off length-scale 
    double precision            :: d_avg_window    ! Time over which to average and/or output reynolds stresses
    double precision            :: d_avg_time      ! Active count for amount of time currently in average
    integer                     :: i_restress_save ! Counter for the output number of the reynolds stress io_write
@@ -97,7 +98,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, d_avg_window
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, d_l_c, d_avg_window
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -125,6 +126,7 @@ contains
       call mpi_bcast(s_restress_xavg,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(s_restress_2d,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(s_restress_filt,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_l_c,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_avg_window,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
 #endif
 
