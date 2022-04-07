@@ -2,9 +2,9 @@ This code simulated Model Waleffe flow in a retangular domain.
 
 To build:
 1. Edit Makefile to point to netcdf & fftw
-2. make;make install
+2. `make;make install`
 
-If starting fresh, a random initial condition will be generated. If state relaminarises then increase d_E0 & recompile, or run at higher Re.
+If starting fresh, a random initial condition will be generated. If state relaminarises then run at higher Re, and use that initial condition to start a run with the original value of Re.
 
 To run.
 1. Copy main.info, main.out & parameter.inp to folder.
@@ -20,8 +20,8 @@ To control.
 4. Parameter.inp contains parameters such as Re, Lx, Lz, and more. These don't require you to recompile and can be changed in the local run directory.
 
 To plot output.
-1. In matlab [x,z,u]=GridUy('state.cdf.in','U',0.) extracts the U field at y=0.
-2. contourf(x,z,u) to visualise.
+* For python use functions in Analysis.py. For example, `plot_XZ`, `plot_ZY_xavg`, etc.
+* In matlab `[x,z,u]=GridUy('state.cdf.in','U',0.)` extracts the `U` field at y=0, then use `contourf(x,z,u)` to visualise.
 
 Questions?
 Feel free to contact me.
