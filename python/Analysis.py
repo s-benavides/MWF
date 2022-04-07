@@ -77,7 +77,7 @@ def mpt2sp(mp,Lx,Lz):
     
     return sRe+1j*sIm
 
-def GridUy(filename,vel_field,yloc):
+def GridUy(filename,vel_field,yloc,intype='mpt'):
     """
     Produces a velocity field on a y-plane.
     
@@ -93,11 +93,15 @@ def GridUy(filename,vel_field,yloc):
         print("Not valid vel_field, returning")
         return
     
-    # Load file
-    time,Re, Lx,Lz,mpt = read_cdf(filename,intype='mpt')
-    
-    # Convert to u,v,w
-    s = mpt2sp(mpt,Lx,Lz)
+    if 'state' in filename:
+        # Load file
+        time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
+        # Convert to u,v,w
+        s = mpt2sp(mpt,Lx,Lz)
+    else:
+        # Load file
+        time,Re,Lx,Lz,spec = read_cdf(filename,intype=intype)
+        s = spec[0,:,:,:] + 1j*spec[1,:,:,:]
     
     # Extract velocity field at y
     if (vel_field=='U' or vel_field=='W'):
@@ -131,11 +135,11 @@ def GridUy(filename,vel_field,yloc):
     
     return time,Re,Lx,Lz,X,Z,U
 
-def GridReStress(filename,intype,Ny=None):
+def GridReStress_xavg(filename,intype,Ny=None):
     """
     Produces the Reynolds averages and stresses in real space (z,y).
    
-    GridReStress(filename, intype).
+    GridReStress_xavg(filename, intype,Ny=None).
     If filename is even, intypes are: umean,wmean,uumean,uwmean,wwmean,vvmean
 
     If filename is odd, intypes are: vmean,wvmean,uvmean
@@ -184,11 +188,11 @@ def GridReStress(filename,intype,Ny=None):
     return time,Re,Lx,Lz,Y,Z,r
 
 
-def GridReForces(run,filenum,direction,Ny=None):
+def GridReForces_xavg(run,filenum,direction,Ny=None):
     """
-    Produces the forces due to Reynolds stresses in real space (z,y).
+    Produces the forces due to (x-avged) Reynolds stresses in real space (z,y).
    
-    GridReStress(run,filenum, direction,Ny=None). Direction = 'x', 'y', or 'z'
+    GridReForces_xavg(run,filenum, direction,Ny=None). Direction = 'x', 'y', or 'z'
     
     By default, the vertical resolution is based on K0, but if you specify Ny=16, it will make 16 y points in the vertical.
 
@@ -275,7 +279,79 @@ def GridReForces(run,filenum,direction,Ny=None):
     
     return time,Re,Lx,Lz,Y,Z,final
 
-def GridXavg(filename,vel_field,Ny=None):
+def SpecReForces_xavg(run,filenum,direction):
+    """
+    Produces the forces due to Reynolds stresses in real space (z) but keeps the vertical direction spectral.
+   
+    SpecReForces_xavg(run,filenum, direction). Direction = 'x', 'y', or 'z'
+    
+    Returns: time,Re,Lx,Lz,Y,Z,F 
+    """
+    filenum = str(filenum).zfill(4)
+    restress_even = sorted(glob.glob(run+'/restress_even'+filenum+'.cdf.dat'))
+    restress_odd = sorted(glob.glob(run+'/restress_odd'+filenum+'.cdf.dat'))
+    
+    if direction == 'x':
+        parity = {'uvmean':'odd','uwmean':'even'}
+    elif direction == 'y':
+        parity = {'vvmean':'even','wvmean':'odd'}
+    elif direction == 'z':
+        parity = {'wvmean':'odd','wwmean':'even'}
+    else:
+        print("Please specify a direction, x, y, or z.")
+        return
+    
+    for ii,field in enumerate(parity):
+        # Filename:
+        if parity[field]=='odd':
+            one = -1
+            filename = restress_odd[0]
+        elif parity[field]=='even':
+            one = 1
+            filename = restress_even[0]
+
+        # Load file:
+        time,Re,Lx,Lz,dat = read_cdf(filename,intype=field)
+
+        NN = dat.shape[1]
+        K  = dat.shape[2]
+
+        s = dat[0] + 1j*dat[1]
+        
+        if (K%2)!=0: # Add the zero mode to y.
+            s=np.hstack([np.zeros((NN,1),dtype=complex),s])
+            K += 1
+
+        # Prepare z derivatives:
+        ad_n1 = np.arange(NN)*(2*np.pi/Lz)
+        klist = np.arange(K)
+        ad_k1 = (-1)**(klist+1)*klist*(np.pi/2)
+        adN,adK = np.meshgrid(ad_n1,ad_k1, indexing='ij')
+
+        if ii==1: # Take z-derivative
+            s *= adN*1j
+        elif ii==0: # Take y-derivative
+            s *= one*adK
+
+        # Transform in z
+        nnz =int(np.ceil(s.shape[0]))
+
+        # Transform in z
+        r = np.fft.irfft(s,n=2*nnz,axis=0)*2*nnz
+            
+        # Make grid
+        Nz,_ = r.shape
+        z = np.arange(Nz)*Lz/Nz
+#         Z,Y = np.meshgrid(z,y,indexing='ij')
+
+        if ii==0:
+            final = np.copy(r)
+        if ii==1:
+            final += np.copy(r)
+    
+    return time,Re,Lx,Lz,z,final
+
+def GridXavg(filename,vel_field,Ny=None,intype='mpt'):
     """
     Produces an x-averaged velocity field on a y-z plane. 
     
@@ -283,19 +359,28 @@ def GridXavg(filename,vel_field,Ny=None):
     """
     if vel_field=='U':
         ymode=0
+        K = 4
     elif vel_field == 'W':
         ymode = 7
+        K = 4
     elif vel_field == 'V':
         ymode = 4
+        K=3
     else:
         print("Not valid vel_field, returning")
         return
     
-    # Load file
-    time,Re, Lx,Lz,mpt = read_cdf(filename,intype='mpt')
+    if 'state' in filename:
+        # Load file
+        time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
+        # Convert to u,v,w
+        s = mpt2sp(mpt,Lx,Lz)
+    else:
+        # Load file
+        time,Re,Lx,Lz,spec = read_cdf(filename,intype=intype)
+        s = spec[0,:,:,:] + 1j*spec[1,:,:,:]
     
-    # Convert to u,v,w
-    s = mpt2sp(mpt,Lx,Lz)
+    Ly = 2
     
     if Ny==None:
         Ny = (K-1)*2
@@ -327,9 +412,9 @@ def GridXavg(filename,vel_field,Ny=None):
 
 def plot_reforces(run,filenum,direction,figwidth = 12,aspect_factor=3,Ny=None):
     """
-    For help choosing arguments, look at help(GridReForces).
+    For help choosing arguments, look at help(GridReForces_xavg).
     """
-    time,Re,Lx,Lz,Y,Z,r = GridReForces(run,filenum,direction,Ny=Ny)
+    time,Re,Lx,Lz,Y,Z,r = GridReForces_xavg(run,filenum,direction,Ny=Ny)
     
     rbar = np.max([-np.min(r),np.max(r)])
     
@@ -347,9 +432,9 @@ def plot_reforces(run,filenum,direction,figwidth = 12,aspect_factor=3,Ny=None):
 
 def plot_restress(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
     """
-    For help choosing filenames and fields, look at help(GridReStress).
+    For help choosing filenames and fields, look at help(GridReStress_xavg).
     """
-    time,Re,Lx,Lz,Y,Z,r = GridReStress(filename,field,Ny=Ny)
+    time,Re,Lx,Lz,Y,Z,r = GridReStress_xavg(filename,field,Ny=Ny)
     
     rbar = np.max([-np.min(r),np.max(r)])
     
@@ -365,28 +450,16 @@ def plot_restress(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
     plt.xlabel(r'$z$')
     plt.show()
     
-def plot_state_xavg(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
+def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8):
     """
-    For help choosing filenames and fields, look at help(GridXavg).
+    If filename is state****.cdf.dat:
+        Plots field at yloc from filename.
+        
+    If filename is restress_2d:
+        Plots the 2D Reynolds average or Reynolds stresses at a given y location ('yloc'). 
+        Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
     """
-    time,Re,Lx,Lz,Y,Z,r = GridXavg(filename,field,Ny=Ny)
-    
-    rbar = np.max([-np.min(r),np.max(r)])
-    
-    plt.figure(figsize=(figwidth,figwidth/3))
-    plt.title("Re = %.2e, Lx = %.2f, Lz = %.2f, \n Field: %s, time= %.4f" % (Re,Lx,Lz,field,time))
-    if Ny==None:
-        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor))
-    else:
-        plt.pcolor(Z,Y,r,vmin=-rbar,vmax=rbar,cmap='bwr')
-#         plt.gca().set_aspect(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor)
-    plt.colorbar()
-    plt.ylabel(r'$y$')
-    plt.xlabel(r'$z$')
-    plt.show()
-
-def plot_state(filename,field,yloc,figwidth=8):
-    time,Re,Lx,Lz,X,Z,U = GridUy(filename,field,yloc)
+    time,Re,Lx,Lz,X,Z,U = GridUy(filename,field,yloc,intype=intype)
     
     cscale=np.max((np.abs(np.min(U)),np.max(U)))
     
@@ -398,6 +471,33 @@ def plot_state(filename,field,yloc,figwidth=8):
     ax.set_aspect(1)
     plt.xlabel(r'$x$')
     plt.ylabel(r'$z$')
+    plt.show()
+    
+def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=None):
+    """
+    If filename is state****.cdf.dat:
+        Plots x-averaged field from filename, with a given Ny resolution (default = None, which means the choice is based on the spectral resolution).
+        
+    If filename is restress_2d:
+        Plots the x-averaged Reynolds average or Reynolds stresses. 
+        Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
+    
+    For help choosing filenames and fields, look at help(GridXavg).
+    """
+    time,Re,Lx,Lz,Y,Z,r = GridXavg(filename,field,Ny=Ny,intype=intype)
+    
+    rbar = np.max([-np.min(r),np.max(r)])
+    
+    plt.figure(figsize=(figwidth,figwidth/3))
+    plt.title("Re = %.2e, Lx = %.2f, Lz = %.2f, \n Field: %s, time= %.4f" % (Re,Lx,Lz,field,time))
+    if Ny==None:
+        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor))
+    else:
+        plt.pcolor(Z,Y,r,vmin=-rbar,vmax=rbar,cmap='bwr')
+#         plt.gca().set_aspect(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor)
+    plt.colorbar()
+    plt.ylabel(r'$y$')
+    plt.xlabel(r'$z$')
     plt.show()
     
 def plot_turb(filename,figwidth=8):
