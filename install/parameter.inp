@@ -29,5 +29,6 @@ d_vdrag = 0.0       ! ?? If non-zero then can reduce drag from potential flow?
 s_restress_xavg = .true. ! If true, calculates the x-avged reynolds avg and stresses online based on time average
 s_restress_2d   = .true. ! If true, calculates the full 2d reynolds avg and stresses online based on time average
 s_restress_filt = .true. ! If true, calculates the reynolds avg and stresses based on spatial filtering
+d_l_c = 2           ! If s_restress_filt, then this is the cutoff length-scale in the 'coarse graining'
 d_avg_window = 500  ! Amount of simulation time over which to take the Reynolds average
 / 
