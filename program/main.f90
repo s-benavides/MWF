@@ -22,8 +22,10 @@ PROGRAM MAIN
       call var_null()
       call vel_imposesym()
       ! Update Reynolds average and stress calculations
-      if (s_restress_xavg) call vel_restress_calc() 
-      if (s_restress_2d) call vel_restress_2d_calc() 
+      i_count       = i_count + 1
+      d_avg_time    = d_avg_time + d_dt
+      if (s_restress_xavg) call vel_restress_calc(i_count) 
+      if (s_restress_2d) call vel_restress_2d_calc(i_count) 
       call io_write2files()
       call vel_TS()
       tim_t         = tim_t    + d_dt
