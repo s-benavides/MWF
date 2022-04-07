@@ -15,7 +15,8 @@
    character(200)        :: io_statefile
    integer               :: io_save1
    integer,     private  :: io_KE, io_HI
-   type (mpt),  private  :: c1,c2,c3
+   type (mpt),  private  :: c1
+   type (spec),  private  :: s1
    type (spec_xavg_odd), private :: x1o
    type (spec_xavg_even), private :: x1e
    character(200) :: oloc='RUNNING'
@@ -165,9 +166,11 @@
       end if
 
      ! Reynolds stresses
-     if ((d_avg_time > d_avg_window).and.(s_restress_xavg)) then
+     if ((d_avg_time > d_avg_window).and.((s_restress_xavg).or.(s_restress_2d).or.(s_restress_filt))) then
        ! Exports Reynolds averages and stresses
-       call io_save_spec_xavg()
+       if (s_restress_xavg) call io_save_xavg()
+       if (s_restress_2d) call io_save_restress_2d()
+       if (s_restress_filt) call io_save_restress_filt()
        
        ! Updates counters
        i_restress_save = i_restress_save + 1 
@@ -175,7 +178,8 @@
        d_avg_time = 0.0
 
        ! Resets average values
-       call vel_restress_reset()
+       if (s_restress_xavg) call vel_restress_reset()
+       if (s_restress_2d) call vel_restress_2d_reset()
      end if
 
 ! Every 50 i_save_rate2 reopen vel_energy to
@@ -407,7 +411,7 @@
 !--------------------------------------------------------------------------
 !  Save Reynold averages and stresses
 !--------------------------------------------------------------------------
-   subroutine io_save_spec_xavg()
+   subroutine io_save_xavg()
       character(4) :: cnum
       integer :: e, f
       integer :: nd,kd, ReImd, dims(3)
@@ -480,7 +484,7 @@
       if(mpi_rnk==0)  &
          e=nf90_close(f)
 
-   end subroutine io_save_spec_xavg
+   end subroutine io_save_xavg
 
    subroutine io_define_restress(f,nm,dims, id,KK)
       integer,      intent(in) :: f, dims(3)
@@ -564,6 +568,90 @@
       end if
 #endif      
    end subroutine io_save_restress_odd
+   
+   subroutine io_save_restress_2d()
+      character(4) :: cnum
+      integer :: e, f
+      integer :: md,nd,kd, ReImd, dims(4)
+      integer :: mss,rss1,rss2
+
+      write(cnum,'(I4.4)') i_restress_save
+
+      !! Mean velocities
+      if(mpi_rnk==0) then
+         print*, ' Saving Reynolds averages and stresses (2D)'//cnum//'  t=', tim_t
+         e=nf90_create('restress_2d'//cnum//'.cdf.dat', nf90_clobber, f)
+         e=nf90_put_att(f, nf90_global, 't', tim_t)
+         e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
+         e=nf90_put_att(f, nf90_global, 'Re', d_Re)
+         e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
+         e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
+
+         e=nf90_def_dim(f, 'N', i_NN, nd)
+         e=nf90_def_dim(f, 'M', i_M, md)
+         e=nf90_def_dim(f, 'KK', i_KK, kd)
+         e=nf90_def_dim(f, 'ReIm', 2, ReImd)
+
+         dims = (/kd,md,nd,ReImd/)
+         call io_define_spec(f, 'umean_2d', dims, mss)
+         call io_define_spec(f, 'remean1_2d', dims, rss1)
+         call io_define_spec(f, 'remean2_2d', dims, rss2)
+
+         e=nf90_enddef(f)
+      end if
+
+      call io_save_spec(f,mss, umean_2d)
+      call io_save_spec(f,rss1,remean1_2d)
+      call io_save_spec(f,rss2, remean2_2d)
+
+      if(mpi_rnk==0)  &
+         e=nf90_close(f)
+
+   end subroutine io_save_restress_2d
+   
+   subroutine io_save_restress_filt()
+      character(4) :: cnum
+      integer :: e, f
+      integer :: md,nd,kd, ReImd, dims(4)
+      integer :: mss,rss1,rss2
+      type(spec) :: umean_filt, remean1_filt, remean2_filt
+
+      write(cnum,'(I4.4)') i_restress_save
+
+      if(mpi_rnk==0) then
+         print*, ' Saving Reynolds averages and stresses (filt)'//cnum//'  t=', tim_t
+         e=nf90_create('restress_filt'//cnum//'.cdf.dat', nf90_clobber, f)
+         e=nf90_put_att(f, nf90_global, 't', tim_t)
+         e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
+         e=nf90_put_att(f, nf90_global, 'Re', d_Re)
+         e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
+         e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
+         e=nf90_put_att(f, nf90_global, 'l_c', d_l_c)
+
+         e=nf90_def_dim(f, 'N', i_NN, nd)
+         e=nf90_def_dim(f, 'M', i_M, md)
+         e=nf90_def_dim(f, 'KK', i_KK, kd)
+         e=nf90_def_dim(f, 'ReIm', 2, ReImd)
+
+         dims = (/kd,md,nd,ReImd/)
+         call io_define_spec(f, 'umean_filt', dims, mss)
+         call io_define_spec(f, 'remean1_filt', dims, rss1)
+         call io_define_spec(f, 'remean2_filt', dims, rss2)
+
+         e=nf90_enddef(f)
+      end if
+
+      call vel_restress_filt_calc(vel_c,d_l_c,umean_filt,remean1_filt,remean2_filt)
+
+      call io_save_spec(f,mss, umean_filt)
+      call io_save_spec(f,rss1,remean1_filt)
+      call io_save_spec(f,rss2, remean2_filt)
+
+      if(mpi_rnk==0)  &
+         e=nf90_close(f)
+
+   end subroutine io_save_restress_filt
+
 
 !--------------------------------------------------------------------------
 !  Save coll variable
@@ -614,6 +702,55 @@
       end if
 #endif      
    end subroutine io_save_mpt
+
+
+   subroutine io_define_spec(f,nm,dims, id)
+      integer,      intent(in) :: f, dims(4)
+      character(*), intent(in) :: nm
+      integer, intent(out) :: id
+      integer :: e
+      e=nf90_def_var(f, nm, nf90_double, dims, id)
+      e=nf90_put_att(f, id,  'KK', i_KK)      
+      e=nf90_put_att(f, id,  'MM', i_MM)
+      e=nf90_put_att(f, id,  'NN', i_NN)
+   end subroutine io_define_spec
+
+   subroutine io_save_spec(f,id,a)
+      integer,     intent(in) :: f, id
+      type (spec), intent(in) :: a
+      integer :: e
+      
+#ifndef _MPI
+      e=nf90_put_var(f,id,a%Re(1:i_KK,0:i_M1,0:i_NN1), start=(/1,1,1,1/))
+      e=nf90_put_var(f,id,a%Im(1:i_KK,0:i_M1,0:i_NN1), start=(/1,1,1,2/))
+
+#else
+      integer :: r, pN0,pN1
+
+      if(mpi_rnk==0) then
+         e=nf90_put_var(f,id,a%Re(1:i_KK,0:i_M1,0:var_N%pH1), start=(/1,1,1,1/))
+         e=nf90_put_var(f,id,a%Im(1:i_KK,0:i_M1,0:var_N%pH1), start=(/1,1,1,2/))         
+         do r = 1, mpi_sze-1
+            pN0 = var_N%pH0_(r)
+            pN1 = var_N%pH1_(r)
+            mpi_tg = r
+            call mpi_recv( s1%Re(1,0,0), i_M*(pN1+1)*i_KK, mpi_double_precision,  &
+               r, mpi_tg, mpi_comm_world, mpi_st, mpi_er)
+            call mpi_recv( s1%Im(1,0,0), i_M*(pN1+1)*i_KK, mpi_double_precision,  &
+               r, mpi_tg, mpi_comm_world, mpi_st, mpi_er)
+            e=nf90_put_var(f,id,s1%Re(1:i_KK,0:i_M1,0:pN1), start=(/1,1,pN0+1,1/))
+            e=nf90_put_var(f,id,s1%Im(1:i_KK,0:i_M1,0:pN1), start=(/1,1,pN0+1,2/))
+         end do
+      else
+         mpi_tg = mpi_rnk
+         call mpi_send( a%Re(1,0,0), i_M*(var_N%pH1+1)*i_KK, mpi_double_precision,  &
+            0, mpi_tg, mpi_comm_world, mpi_er)
+         call mpi_send( a%Im(1,0,0), i_M*(var_N%pH1+1)*i_KK, mpi_double_precision,  &
+            0, mpi_tg, mpi_comm_world, mpi_er)
+      end if
+#endif      
+   end subroutine io_save_spec
+
 
 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 !  save spectrum !var_mpt2spec
