@@ -626,7 +626,8 @@
          e=nf90_put_att(f, nf90_global, 'Re', d_Re)
          e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
          e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
-         e=nf90_put_att(f, nf90_global, 'l_c', d_l_c)
+         e=nf90_put_att(f, nf90_global, 'nx_c', i_nx_c)
+         e=nf90_put_att(f, nf90_global, 'nz_c', i_nz_c)
 
          e=nf90_def_dim(f, 'N', i_NN, nd)
          e=nf90_def_dim(f, 'M', i_M, md)
@@ -641,7 +642,7 @@
          e=nf90_enddef(f)
       end if
 
-      call vel_restress_filt_calc(vel_c,d_l_c,umean_filt,remean1_filt,remean2_filt)
+      call vel_restress_filt_calc(vel_c,i_nx_c,i_nz_c,umean_filt,remean1_filt,remean2_filt)
 
       call io_save_spec(f,mss, umean_filt)
       call io_save_spec(f,rss1,remean1_filt)

@@ -377,11 +377,12 @@ contains
     remean2_2d%Im = 0.0*remean2_2d%Im
   end subroutine vel_restress_2d_reset
   
-  subroutine vel_restress_filt_calc(vel_c,l_c,umean_filt,remean1_filt,remean2_filt)
+  subroutine vel_restress_filt_calc(vel_c,nx_c,nz_c,umean_filt,remean1_filt,remean2_filt)
   !! This subroutine takes the current fields and calculates the mean
   !! via lowpass filter. Then calculates Reynolds averages.
   !! These are full 2d in x-z plane. No x-averaging
-  !! Inputs: vel_c (mpt), cutoff length l_c
+  !! Inputs: vel_c (mpt), cutoff mode number nx_c in the x-direction and nz_c in
+  !! the z direction
   !! Outputs: filtered mean velocity umean_filt, and reynolds stresses
   !! remean1_filt, remean2_filt (all of spec type)
 
@@ -389,8 +390,8 @@ contains
     type(spec) :: u,up,nl_tmp
     type(spec), intent(out) :: umean_filt,remean1_filt,remean2_filt
     type(phys) :: p,mult_aux
-    double precision, intent(in) :: l_c
-    double precision :: k_c,k
+    integer, intent(in) :: nx_c,nz_c
+    integer :: nx
     _loop_mn_vars
 
     ! Takes current mpt field and converts to spec
@@ -398,16 +399,14 @@ contains
     
     ! -------- MEAN VELOCITIES -------
 
-    k_c = 2.0d0*d_PI/l_c
-
     ! Filter the velocity field
     _loop_mn_begin
     if (m<i_MM) then
-        k = sqrt((d_alpha*m)**2+(d_gamma*n)**2)
+        nx = m
     else if (m.ge.i_MM) then
-        k = sqrt((d_alpha*(m-i_M))**2+(d_gamma*n)**2)
+        nx = abs(m-i_M)
     end if 
-    if (k.ge.k_c) then
+    if ((nn.ge.nz_c).or.(nx.ge.nx_c)) then
         umean_filt%Re(:,m,n) = 0.0*u%Re(:,m,n) 
         umean_filt%Im(:,m,n) = 0.0*u%Im(:,m,n)
     else
@@ -436,11 +435,11 @@ contains
     ! Filter 
     _loop_mn_begin
     if (m<i_MM) then
-        k = sqrt((d_alpha*m)**2+(d_gamma*n)**2)
+        nx = m
     else if (m.ge.i_MM) then
-        k = sqrt((d_alpha*(m-i_M))**2+(d_gamma*n)**2)
+        nx = abs(m-i_M)
     end if 
-    if (k.ge.k_c) then
+    if ((nn.ge.nz_c).or.(nx.ge.nx_c)) then
         remean1_filt%Re(:,m,n) = 0.0*nl_tmp%Re(:,m,n) 
         remean1_filt%Im(:,m,n) = 0.0*nl_tmp%Im(:,m,n)
     else
@@ -462,11 +461,11 @@ contains
     ! Filter 
     _loop_mn_begin
     if (m<i_MM) then
-        k = sqrt((d_alpha*m)**2+(d_gamma*n)**2)
+        nx = m
     else if (m.ge.i_MM) then
-        k = sqrt((d_alpha*(m-i_M))**2+(d_gamma*n)**2)
+        nx = abs(m-i_M)
     end if 
-    if (k.ge.k_c) then
+    if ((nn.ge.nz_c).or.(nx.ge.nx_c)) then
         remean2_filt%Re(:,m,n) = 0.0*nl_tmp%Re(:,m,n) 
         remean2_filt%Im(:,m,n) = 0.0*nl_tmp%Im(:,m,n)
     else
