@@ -14,7 +14,7 @@ module velocity
   
   type (phys) :: vel_p
   type (mpt)  :: vel_c,vel_c2,vel_onl,vel_nl,lhs,rhs
-  type(spec) :: umean_2d,remean1_2d,remean2_2d 
+  type(spec) :: umean_2d,remean1_2d,remean2_2d,spec_in
   !umean_2d = (umean,vmean,wmean), remean1_2d = (uumean,uvmean,uwmean), remean2_2d = (vvmean,wvmean,wwmean)
   type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean
   type(spec_xavg_odd) :: vmean,uvmean,wvmean
@@ -45,7 +45,10 @@ contains
   end subroutine vel_TS
  
   subroutine vel_precompute()
-   
+    call var_spec_init(spec_in) 
+    call var_spec_init(umean_2d) 
+    call var_spec_init(remean1_2d) 
+    call var_spec_init(remean2_2d) 
     call var_mpt_init(vel_c)
     call var_mpt_init(vel_nl)
     call var_LHSRHS(lhs,rhs)
@@ -95,6 +98,7 @@ contains
   
   subroutine vel_nonlinear()
     real :: ci,co
+    logical :: exist
     type (spec) :: u,ux,uz
     type (phys) :: p,px,pz,ans
     _loop_mn_vars
@@ -112,6 +116,11 @@ contains
     _loop_mn_end
     
     call tra_phys2spec(ans,u)
+      
+    !! If (spec.cdf.in) file is present, spec_in =/= 0, otherwise spec_in = 0
+    u%Re = u%Re + spec_in%Re
+    u%Im = u%Im + spec_in%Im
+
     call var_spec2mpt(u,vel_nl)
 
   end subroutine vel_nonlinear
