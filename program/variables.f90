@@ -300,7 +300,16 @@ _loop_mn_end
      type (mpt), intent(out) :: c
 !      integer,parameter :: seed = 82342
       double precision :: r
+      integer :: state_size
+      integer, allocatable, dimension(:) :: state
       _loop_kmn_vars
+      
+      !! Calls a new random seed
+      call random_seed(size=state_size)
+      allocate(state(state_size))
+      state=i_rand_seed
+      call RANDOM_SEED(put=state)
+      
       _loop_kmn_begin
       mm = m
       if (mm > i_MM1) mm = m - i_M 
@@ -567,6 +576,7 @@ _loop_mn_end
          ad_k1(k)=(-1d0)**k * k * d_beta
          ad_k2(k)=-k*k*d_beta*d_beta
       end do 
+
 
    end subroutine var_precompute
 
