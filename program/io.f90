@@ -28,6 +28,7 @@
    subroutine io_precompute()
      character(4) :: cnum
      type (phys)   :: vp
+     logical       :: exist
      double precision :: E
      _loop_kmn_vars
 
@@ -49,6 +50,8 @@
       io_hi    = 0      
       if (s_HIS) &
            io_hi    = 30
+       
+       !!! INITIAL CONDITIONS
 
        if (io_save1==0) then 
         ! Make initial condition and save it, then load it as state.cdf.in 
@@ -80,6 +83,10 @@
         endif
         io_statefile = 'state'//cnum//'.cdf.dat'
       endif
+
+      !!! SPEC_IN 
+      inquire(file='spec.cdf.in',exist=exist)
+      if (exist) call io_load_spec('spec.cdf.in',spec_in)
    end subroutine io_precompute 
  
 
@@ -240,6 +247,66 @@
 
    end subroutine io_load_state
 
+!--------------------------------------------------------------------------
+!  Load spec file
+!--------------------------------------------------------------------------
+   subroutine io_load_spec(io_specfile,u)
+      integer :: e, f, i
+      character(*),  intent(in) :: io_specfile
+      type (spec),   intent(out) :: u
+      integer :: K__, M__, N__
+      logical :: error=.false.
+
+      if(mpi_rnk==0)      print*, "Loading: ",io_specfile
+      e=nf90_open(io_specfile, nf90_nowrite, f)      
+      if(e/=nf90_noerr) then
+         if(mpi_rnk==0) open(99, file='PRECOMPUTING')
+         if(mpi_rnk==0) close(99, status='delete')
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'spec file not found!'
+      end if
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      e=nf90_inq_varid(f,'spec', i)
+      if(e/=nf90_noerr)  print*, 'Field spec not found!'
+      if(e/=nf90_noerr)  stop 'io_load_spec'
+      e=nf90_get_att(f,i, 'KK',  K__)
+      e=nf90_get_att(f,i, 'MM',  M__)
+      e=nf90_get_att(f,i, 'NN',  N__)
+      if(K__ /=i_KK)  error=.true.
+      if(M__ /=i_MM) error=.true.
+      if(N__ /=i_NN) error=.true.
+
+      if(mpi_rnk==0) then
+         if(K__ /=i_KK)  print*,'spec  KK :', K__, ' --> ',i_KK 
+         if(M__ /=i_MM)  print*,'spec  MM :', M__, ' --> ',i_MM 
+         if(N__ /=i_NN)  print*,'spec  NN :', N__,' --> ',i_NN 
+      end if
+      if (error) then
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'wrong state size'
+      end if
+      
+      u%Re = 0d0
+      u%Im = 0d0
+      
+      e=nf90_get_var(f,i, u%Re(:,:,:),start=(/1,1,var_N%pH0+1,1/))
+      e=nf90_get_var(f,i, u%Im(:,:,:),start=(/1,1,var_N%pH0+1,2/))
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      e=nf90_close(f)
+#ifdef _MPI
+      call mpi_barrier(mpi_comm_world, mpi_er)
+#endif
+
+   end subroutine io_load_spec
 
 !--------------------------------------------------------------------------
 !  Load coll variable
