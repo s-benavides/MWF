@@ -226,13 +226,20 @@ contains
     ! -------- REYNOLDS STRESSES  -------
     ! <u'u'>, <u'v'> and <u'w'>
     ! Calculate u' = u-umean, etc
-    do m = 0,i_M1
-        up%Re(1:i_K0,m,:) = u%Re(1:i_K0,m,:) - umean%Re
-        up%Im(1:i_K0,m,:) = u%Im(1:i_K0,m,:) - umean%Im
-        up%Re(i_K0+1:2*i_K0-1,m,:) = u%Re(i_K0+1:2*i_K0-1,m,:) - vmean%Re 
-        up%Im(i_K0+1:2*i_K0-1,m,:) = u%Im(i_K0+1:2*i_K0-1,m,:) - vmean%Im
-        up%Re(2*i_K0:3*i_K0-1,m,:) = u%Re(2*i_K0:3*i_K0-1,m,:) - wmean%Re
-        up%Im(2*i_K0:3*i_K0-1,m,:) = u%Im(2*i_K0:3*i_K0-1,m,:) - wmean%Im
+    up%Re(1:i_K0,0,:) = u%Re(1:i_K0,0,:) - umean%Re
+    up%Im(1:i_K0,0,:) = u%Im(1:i_K0,0,:) - umean%Im
+    up%Re(i_K0+1:2*i_K0-1,0,:) = u%Re(i_K0+1:2*i_K0-1,0,:) - vmean%Re 
+    up%Im(i_K0+1:2*i_K0-1,0,:) = u%Im(i_K0+1:2*i_K0-1,0,:) - vmean%Im
+    up%Re(2*i_K0:3*i_K0-1,0,:) = u%Re(2*i_K0:3*i_K0-1,0,:) - wmean%Re
+    up%Im(2*i_K0:3*i_K0-1,0,:) = u%Im(2*i_K0:3*i_K0-1,0,:) - wmean%Im
+    
+    do m = 1,i_M1
+        up%Re(1:i_K0,m,:) = u%Re(1:i_K0,m,:)
+        up%Im(1:i_K0,m,:) = u%Im(1:i_K0,m,:)
+        up%Re(i_K0+1:2*i_K0-1,m,:) = u%Re(i_K0+1:2*i_K0-1,m,:) 
+        up%Im(i_K0+1:2*i_K0-1,m,:) = u%Im(i_K0+1:2*i_K0-1,m,:)
+        up%Re(2*i_K0:3*i_K0-1,m,:) = u%Re(2*i_K0:3*i_K0-1,m,:)
+        up%Im(2*i_K0:3*i_K0-1,m,:) = u%Im(2*i_K0:3*i_K0-1,m,:)
     end do
     
     ! Calculate u'u', u'v', u'w'
