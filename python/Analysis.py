@@ -12,7 +12,11 @@ def read_cdf(filename,intype='mpt'):
         alpha = np.copy(f.alpha)
         gamma = np.copy(f.gamma)
         Re = np.copy(f.Re)
-        field = np.copy(f.variables[intype].data)
+        try:
+            field = np.copy(f.variables[intype].data)
+        except:
+            print("Not a valid 'intype'! These are the possible options:")
+            print(f.variables.keys())
         time = np.copy(f.t)
     Lx = 2*np.pi/alpha
     Lz = 2*np.pi/gamma
@@ -22,64 +26,78 @@ def mpt2sp(mp,Lx,Lz):
     """
     Converts mean-poloidal-toroidal to u,v,w
     """
-    mpRe = np.squeeze(mp[0,:,:,:])
-    mpIm = np.squeeze(mp[1,:,:,:])
+    # Write in complex form
+    mpt = np.squeeze(mp[0,:,:,:]) + 1j*np.squeeze(mp[1,:,:,:])
     
-    K0 = int((mpRe.shape[2]+1)/2)
-    MT = mpRe.shape[1] # 2*(MM-1), where MM is the resolution in x (e.g. Nx = 512)
-    NT=  mpRe.shape[0]
+    K0 = int((mpt.shape[2]+1)/2)
+    MT = mpt.shape[1] # 2*(MM-1) = i_M, where MM is the resolution in x (e.g. Nx = 512). Goes from 0 to i_M1 = i_M -1 = 2*(i_MM-1)-1
+    NT=  mpt.shape[0]
     
     if MT%2==0:
-        MM=int(MT/2)
+        MM=int(MT/2)+1
     else:
         print("ERROR i_MM not divisible by two!")
-        MM=int((MT+1)/2)
-        
-    # First derivative operator x
-    ad_m1 = np.fft.fftfreq(MT,d=Lx/(MT*2*np.pi))
-    ad_m2 = -ad_m1**2
+        MM=np.nan
     
-    # Same for z
-    ad_n1 = np.arange(NT)*(2*np.pi/Lz)
-    ad_n2 = (np.arange(NT)*(2*np.pi/Lz))**2
+    # Prepare x-derivative
+    ad_m1 = 1j*np.fft.fftfreq(MT,d=Lx/(MT*2*np.pi))
+    ad_m2 = ad_m1**2
     
-    sRe = np.zeros((NT,MT,3*K0-1))
-    sIm = np.zeros((NT,MT,3*K0-1))
-    d_beta = np.pi/2
-    
+    # Prepare z-derivative
+    ad_n1 = 1j*np.arange(NT)*(2*np.pi/Lz)
+    ad_n2 = ad_n1**2
+    # Prepare y derivatives:
     klist = np.arange(K0)
-    ad_k1 = (-1)**(klist) * klist * d_beta
+    ad_k1 = (-1)**(klist)*klist*(np.pi/2) # Include ky = 0 mode.
+
+    adN,adM,adK = np.meshgrid(ad_n1,ad_m1,ad_k1,indexing='ij')
+    adN2,adM2,_ = np.meshgrid(ad_n2,ad_m2,ad_k1,indexing='ij')
     
-    adN,adM,adK = np.meshgrid(ad_n1,ad_m1,ad_k1)
-    adN2,adM2,_ = np.meshgrid(ad_n2,ad_m2,ad_k1)
-    adN = np.transpose(adN,(1,0,2))
-    adM = np.transpose(adM,(1,0,2))
-    adK = np.transpose(adK,(1,0,2))
-    adN2 = np.transpose(adN2,(1,0,2))
-    adM2 = np.transpose(adM2,(1,0,2))
-        
-    sRe[:,:,K0-1:2*K0-1] = -mpRe[:,:,K0-1:2*K0-1]*(adM2+adN2)
-    sIm[:,:,K0-1:2*K0-1] = -mpIm[:,:,K0-1:2*K0-1]*(adM2+adN2)
-
-    sRe[:,:,:K0] = -(-mpIm[:,:,:K0]*adN +mpIm[:,:,K0-1:2*K0-1]*adK*adM)
-    sIm[:,:,:K0] = (-mpRe[:,:,:K0]*adN +mpRe[:,:,K0-1:2*K0-1]*adK*adM)
-
-    sRe[:,:,2*K0-1:3*K0-1] = -(mpIm[:,:,:K0]*adM +mpIm[:,:,K0-1:2*K0-1]*adK*adN)
-    sIm[:,:,2*K0-1:3*K0-1] = (mpRe[:,:,:K0]*adM +mpRe[:,:,K0-1:2*K0-1]*adK*adN)
+    ## Spec array
+    s = np.zeros((NT,MT,3*K0-1),dtype=complex)
+    
+    # u
+    s[:,:,:K0] = -adN*mpt[:,:,:K0] + adM*adK*mpt[:,:,K0-1:]
+    # v
+    s[:,:,K0:2*K0-1] = -(adM2[:,:,1:]+adN2[:,:,1:])*mpt[:,:,K0:]
+    # w
+    s[:,:,2*K0-1:] = adM*mpt[:,:,:K0] + adK*adN*mpt[:,:,K0-1:] 
     
     # Constrain mean fields to be zero
-    sRe[0,0,0]=sIm[0,0,0] = 0
-    sRe[0,0,2*K0-1] = sIm[0,0,2*K0-1] = 0
-    sRe[0,0,1:K0]= mpRe[0,0,1:K0]
-    sIm[0,0,1:K0] = 0
-    sRe[0,0,2*K0:3*K0-1] = mpRe[0,0,K0:2*K0-1]
-    sIm[0,0,2*K0:3*K0-1] = 0
+    # u
+    s[0,0,0] = 0.0
+    # w 
+    s[0,0,2*K0-1] = 0.0
     
-    return sRe+1j*sIm
+    # Add f(y) and g(y)
+    s[0,0,1:K0]= np.real(mpt[0,0,1:K0])
+    s[0,0,2*K0:3*K0-1] = np.real(mpt[0,0,K0:])
+    
+    return s
 
-def GridUy(filename,vel_field,yloc,intype='mpt'):
+def load_spec(filename,intype='mpt',Retype=None):    
     """
-    Produces a velocity field on a y-plane.
+    Load a field into spec type. Either read a state file, restress file, or calculate the spectral forces if 'intype'==SpecReForces.
+    
+    Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). If plotting forces, then intype = 'SpecReForces', you must specify Retype='2d' or 'filt', and field ('U','V', or 'W') determine the direction of the force. To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
+    """
+    if 'state' in filename:
+        # Load file
+        time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
+        # Convert to u,v,w
+        s = mpt2sp(mpt,Lx,Lz)
+    elif intype=='SpecReForces':
+        time,Re,Lx,Lz,s = SpecReForces(filename,Retype=Retype)
+    else:
+        # Load file
+        time,Re,Lx,Lz,spec = read_cdf(filename,intype=intype)
+        s = spec[0,:,:,:] + 1j*spec[1,:,:,:]
+        
+    return time,Re,Lx,Lz,s
+
+def GridUy(time,Re,Lx,Lz,s,vel_field,yloc):
+    """
+    Produces a velocity field on a y-plane, given a spec field (use 'load_spec' function to load and generate the field from saved files, or create your own).
     
     Location (-1 to 1)
     """
@@ -92,16 +110,6 @@ def GridUy(filename,vel_field,yloc,intype='mpt'):
     else:
         print("Not valid vel_field, returning")
         return
-    
-    if 'state' in filename:
-        # Load file
-        time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
-        # Convert to u,v,w
-        s = mpt2sp(mpt,Lx,Lz)
-    else:
-        # Load file
-        time,Re,Lx,Lz,spec = read_cdf(filename,intype=intype)
-        s = spec[0,:,:,:] + 1j*spec[1,:,:,:]
     
     # Extract velocity field at y
     if (vel_field=='U' or vel_field=='W'):
@@ -279,83 +287,181 @@ def GridReForces_xavg(run,filenum,direction,Ny=None):
     
     return time,Re,Lx,Lz,Y,Z,final
 
-def SpecReForces_xavg(run,filenum,direction):
+def SpecReForces_xavg(run,filenum,grid=False):
     """
-    Produces the forces due to Reynolds stresses in real space (z) but keeps the vertical direction spectral.
+    Produces the forces due to Reynolds stresses (calculated from the x-averaged stresses 'restress_even' or 'restress_odd') in spectral space if 'grid=False' and in real space (z) if 'grid=True' but keeps the vertical direction spectral.
    
-    SpecReForces_xavg(run,filenum, direction). Direction = 'x', 'y', or 'z'
+    SpecReForces_xavg(run,filenum).
     
-    Returns: time,Re,Lx,Lz,Y,Z,F 
+    Returns: time,Re,Lx,Lz,z,out 
     """
     filenum = str(filenum).zfill(4)
     restress_even = sorted(glob.glob(run+'/restress_even'+filenum+'.cdf.dat'))
     restress_odd = sorted(glob.glob(run+'/restress_odd'+filenum+'.cdf.dat'))
     
-    if direction == 'x':
-        parity = {'uvmean':'odd','uwmean':'even'}
-    elif direction == 'y':
-        parity = {'vvmean':'even','wvmean':'odd'}
-    elif direction == 'z':
-        parity = {'wvmean':'odd','wwmean':'even'}
-    else:
-        print("Please specify a direction, x, y, or z.")
-        return
-    
-    for ii,field in enumerate(parity):
-        # Filename:
-        if parity[field]=='odd':
-            one = -1
-            filename = restress_odd[0]
-        elif parity[field]=='even':
-            one = 1
-            filename = restress_even[0]
+    for direction in ['x','y','z']:
+        if direction == 'x':
+            parity = {'uvmean':'odd','uwmean':'even'}
+        elif direction == 'y':
+            parity = {'vvmean':'even','wvmean':'odd'}
+        elif direction == 'z':
+            parity = {'wvmean':'odd','wwmean':'even'}
+        else:
+            print("Please specify a direction, x, y, or z.")
+            return
 
-        # Load file:
-        time,Re,Lx,Lz,dat = read_cdf(filename,intype=field)
+        for ii,field in enumerate(parity):
+            # Filename:
+            if parity[field]=='odd':
+                one = -1
+                filename = restress_odd[0]
+            elif parity[field]=='even':
+                one = 1
+                filename = restress_even[0]
 
-        NN = dat.shape[1]
-        K  = dat.shape[2]
+            # Load file:
+            time,Re,Lx,Lz,dat = read_cdf(filename,intype=field)
 
-        s = dat[0] + 1j*dat[1]
-        
-        if (K%2)!=0: # Add the zero mode to y.
-            s=np.hstack([np.zeros((NN,1),dtype=complex),s])
-            K += 1
+            NN = dat.shape[1]
+            K  = dat.shape[2]
+            if parity[field]=='even':
+                KK=int(3*K-1)
+                
+            s = dat[0] + 1j*dat[1]
 
-        # Prepare z derivatives:
-        ad_n1 = np.arange(NN)*(2*np.pi/Lz)
-        klist = np.arange(K)
-        ad_k1 = (-1)**(klist+1)*klist*(np.pi/2)
-        adN,adK = np.meshgrid(ad_n1,ad_k1, indexing='ij')
+            if (K%2)!=0: # Add the zero mode to y.
+                s=np.hstack([np.zeros((NN,1),dtype=complex),s])
+                K += 1
 
-        if ii==1: # Take z-derivative
-            s *= adN*1j
-        elif ii==0: # Take y-derivative
-            s *= one*adK
+            # Prepare z derivatives:
+            ad_n1 = np.arange(NN)*(2*np.pi/Lz)
+            klist = np.arange(K)
+            ad_k1 = (-1)**(klist+1)*klist*(np.pi/2)
+            adN,adK = np.meshgrid(ad_n1,ad_k1, indexing='ij')
 
-        # Transform in z
-        nnz =int(np.ceil(s.shape[0]))
-
-        # Transform in z
-        r = np.fft.irfft(s,n=2*nnz,axis=0)*2*nnz
+            if ii==1: # Take z-derivative
+                s *= adN*1j
+            elif ii==0: # Take y-derivative
+                s *= one*adK
             
-        # Make grid
-        Nz,_ = r.shape
-        z = np.arange(Nz)*Lz/Nz
-#         Z,Y = np.meshgrid(z,y,indexing='ij')
+            if grid:
+                # Transform in z
+                nnz =int(np.ceil(s.shape[0]))
 
-        if ii==0:
-            final = np.copy(r)
-        if ii==1:
-            final += np.copy(r)
+                # Transform in z
+                s = np.fft.irfft(s,n=2*nnz,axis=0)*2*nnz
+
+                # Make grid
+                Nz,_ = s.shape
+                z = np.arange(Nz)*Lz/Nz
+            else:
+                z = np.nan
+
+            if ii==0:
+                final = np.copy(s)
+            if ii==1:
+                final += np.copy(s)
+        
+        if direction=='x':
+            out = np.zeros((s.shape[0],KK),dtype=complex)
+            out[:,0:4] = np.copy(final)
+        if direction=='y':
+            # If odd mode, remove the 'zero' mode used in calculations.
+            out[:,4:7] = np.copy(final[:,1:])
+        elif direction=='z':
+            out[:,7:11] = np.copy(final)
     
-    return time,Re,Lx,Lz,z,final
+    return time,Re,Lx,Lz,z,out
 
-def GridXavg(filename,vel_field,Ny=None,intype='mpt'):
+def SpecReForces(filename,Retype='2d'):
+    """
+    Produces the forces due to Reynolds stresses in spectral space space.
+   
+    SpecReForces(filename,Retype='2d'). Outputs the forces in spectral space, consistent with 'spec' type in MWF. In other words, 11 vertical modes, Fx in the first four, Fy in the next three, and Fz in the final four.
+    
+    Retype could also be 'filt'.
+    
+    Returns: time,Re,Lx,Lz,F 
+    """
+    for direction in ['x','y','z']:
+        if direction == 'x':
+            recomp = {'uu':['even','remean1','U'],'uv':['odd','remean1','V'],'uw':['even','remean1','W']}
+        elif direction == 'y':
+            recomp = {'uv':['odd','remean1','V'],'vv':['even','remean2','U'],'wv':['odd','remean2','V']}
+        elif direction == 'z':
+            recomp = {'uw':['even','remean1','W'],'wv':['odd','remean2','V'],'ww':['even','remean2','W']}
+        else:
+            print("Please specify a direction: x, y, or z.")
+            return
+
+        for ii,field in enumerate(recomp):
+
+            with netcdf.NetCDFFile(filename,'r') as f:
+                KK = f.dimensions['KK']
+                M = f.dimensions['M']
+                N = f.dimensions['N']
+
+            K0 = int((KK+1)/3)
+
+            if recomp[field][2] =='U':
+                ymode=0
+                ypl = 4
+            elif recomp[field][2] == 'W':
+                ymode = 7
+                ypl = 4
+            elif recomp[field][2] == 'V':
+                ymode = 4
+                ypl = 3
+
+            # Load file
+            time,Re,Lx,Lz,spec = read_cdf(filename,intype=recomp[field][1]+'_'+Retype)
+            # Isolate specific field we want.
+            s = spec[0,:,:,ymode:ymode+ypl] + 1j*spec[1,:,:,ymode:ymode+ypl]
+
+            if ypl==3: # Add the zero mode to y.
+                s=np.dstack([np.zeros((N,M,1),dtype=complex),s])
+
+            # Prepare z derivatives:
+            ad_n1 = np.arange(N)*(2*np.pi/Lz)
+            # Prepare x derivatives:
+            ad_m1 = np.fft.fftfreq(M,d=Lx/(M*2*np.pi))
+            # Prepare y derivatives:
+            if recomp[field][0]=='odd':
+                one = -1
+            elif recomp[field][0]=='even':
+                one = 1
+            klist = np.arange(K0)
+            ad_k1 = (-1)**(klist+1)*klist*(np.pi/2)
+            adN,adM,adK = np.meshgrid(ad_n1,ad_m1,ad_k1, indexing='ij')
+
+            if ii==0: # Take x-derivative
+                s *= adM*1j
+            elif ii==1: # Take y-derivative
+                s *= one*adK
+            elif ii==2: # Take z-derivative
+                s *= adN*1j
+
+            if ii==0:
+                final = np.copy(s)
+            else:
+                final += np.copy(s)
+
+        if direction=='x':
+            spec_out = np.zeros((N,M,KK),dtype=complex)
+            spec_out[:,:,0:4] = np.copy(final)
+        if direction=='y':
+            # If odd mode, remove the 'zero' mode used in calculations.
+            spec_out[:,:,4:7] = np.copy(final[:,:,1:])
+        elif direction=='z':
+            spec_out[:,:,7:11] = np.copy(final)
+
+    return time,Re,Lx,Lz,spec_out
+
+def GridXavg(time,Re,Lx,Lz,s,vel_field,Ny=None):
     """
     Produces an x-averaged velocity field on a y-z plane. 
     
-    GridXavg(filename,vel_field,Ny=None). Possible vel_fields are U,V,W
+    GridXavg(time,Re,Lx,Lz,s,vel_field,Ny=None). Possible vel_fields are U,V,W
     """
     if vel_field=='U':
         ymode=0
@@ -370,15 +476,7 @@ def GridXavg(filename,vel_field,Ny=None,intype='mpt'):
         print("Not valid vel_field, returning")
         return
     
-    if 'state' in filename:
-        # Load file
-        time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
-        # Convert to u,v,w
-        s = mpt2sp(mpt,Lx,Lz)
-    else:
-        # Load file
-        time,Re,Lx,Lz,spec = read_cdf(filename,intype=intype)
-        s = spec[0,:,:,:] + 1j*spec[1,:,:,:]
+    dirs = {'U':'x','V':'y','W':'z'}
     
     Ly = 2
     
@@ -450,16 +548,17 @@ def plot_restress(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
     plt.xlabel(r'$z$')
     plt.show()
     
-def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8):
+def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8,Retype=None):
     """
     If filename is state****.cdf.dat:
         Plots field at yloc from filename.
         
     If filename is restress_2d:
         Plots the 2D Reynolds average or Reynolds stresses at a given y location ('yloc'). 
-        Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
+        Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. If plotting forces, then intype = 'SpecReForces', you must specify Retype='2d' or 'filt', and field ('U','V', or 'W') determine the direction of the force. To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
     """
-    time,Re,Lx,Lz,X,Z,U = GridUy(filename,field,yloc,intype=intype)
+    time,Re,Lx,Lz,s = load_spec(filename,intype=intype,Retype=Retype)
+    time,Re,Lx,Lz,X,Z,U = GridUy(time,Re,Lx,Lz,s,field,yloc)
     
     cscale=np.max((np.abs(np.min(U)),np.max(U)))
     
@@ -473,18 +572,18 @@ def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8):
     plt.ylabel(r'$z$')
     plt.show()
     
-def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=None):
+def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=None,Retype=None):
     """
     If filename is state****.cdf.dat:
         Plots x-averaged field from filename, with a given Ny resolution (default = None, which means the choice is based on the spectral resolution).
         
     If filename is restress_2d:
         Plots the x-averaged Reynolds average or Reynolds stresses. 
-        Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
     
     For help choosing filenames and fields, look at help(GridXavg).
     """
-    time,Re,Lx,Lz,Y,Z,r = GridXavg(filename,field,Ny=Ny,intype=intype)
+    time,Re,Lx,Lz,s = load_spec(filename,intype=intype,Retype=Retype)
+    time,Re,Lx,Lz,Y,Z,r = GridXavg(time,Re,Lx,Lz,s,field,Ny=Ny)
     
     rbar = np.max([-np.min(r),np.max(r)])
     
@@ -499,6 +598,26 @@ def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=No
     plt.ylabel(r'$y$')
     plt.xlabel(r'$z$')
     plt.show()
+
+def spectrum_calc(spec_field,Lx,Lz):
+    """
+    Takes a field (of type 'spec') and outputs the power spectrum in the z direction (averaged in x) and x direction (averaged in z). Keeps the y-modes separate, so that the final spectra are two-dimensional arrays of size, e.g. (N,KK) for the z spectrum.
+    
+    returns kz,specz,|kx|,specx
+    """
+    N,M,KK = field.shape
+    ad_n1 = np.arange(N)*(2*np.pi/Lz)
+    ad_m1 = np.fft.fftfreq(M,d=Lx/(M*2*np.pi))
+    specz = np.mean(np.abs(field),axis=1)
+    
+    specx = np.mean(np.abs(field),axis=0)
+    kmags = np.unique(np.abs(ad_m1))
+    specx_f = np.zeros(kmags.shape)
+    for m in range(M):
+        kmag = np.abs(ad_m1[m])
+        specx_f[np.where(kmags==kmag)] += specx[m]
+    
+    return ad_n1,specz,kmags,specx_f
     
 def plot_turb(filename,figwidth=8):
     time,Re,Lx,Lz,turb = read_cdf(filename,intype='uvw')
