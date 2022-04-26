@@ -12,9 +12,10 @@ import scipy.ndimage as ndim
 # Choose input directory
 idir = '../'
 # Choose output directory
-odir = '../force_test_xavgpost/'
+odir = '../force_test_mode1/'
 # Name for  saved file
-xavg = True
+xavg = False
+incomp = True
 if xavg:
     name = 'spec_xavgpost.bak'
 else:
@@ -34,20 +35,36 @@ Retype = '2d'
 # First let's load the Reynolds stresses to calculate the force
 restress = sorted(glob.glob(idir+run+'/restress_'+Retype+'*'))
 
-# Extract the forces in spectral space:
-time, Re, Lx, Lz, specF = aa.SpecReForces(restress[n],Retype=Retype)
-
+if incomp:
+    # Extract the forces in spectral space:
+    time, Re, Lx, Lz, specF_full = aa.SpecReForces(restress[n],Retype=Retype)
+    # Project onto incompressible field:
+    specF_comp,specF = aa.div_comp(Lx,Lz,specF_full)
+else:
+    # Extract the forces in spectral space:
+    time, Re, Lx, Lz, specF = aa.SpecReForces(restress[n],Retype=Retype)
+    
 # Coarse grain by spectral truncation
 N_new = nz_c
 MM_new = nx_c
 M_new = 2*(MM_new-1)
 KK = specF.shape[2]
 specF_filt = np.zeros((N_new,M_new,KK),dtype=complex)
-specF_filt[:,:MM_new,:] = specF[:N_new,:MM_new,:]
-specF_filt[:,MM_new:,:] = specF[:N_new,-MM_new+2:,:]
+specF_filt[:,:MM_new,:] = -specF[:N_new,:MM_new,:] # Minus sign because now we're going to feed in <u'.grad(u')>, as a nonlinear term, not a forcing on the RHS
+specF_filt[:,MM_new:,:] = -specF[:N_new,-MM_new+2:,:]
 
-# # Flip the sign of w?
-# specF_filt[:,:,:4] *= -1.0
+# Set modes to zero:
+specF_filt[:,:,0] = 0.0
+# specF_filt[:,:,1] = 0.0
+specF_filt[:,:,2] = 0.0
+specF_filt[:,:,3] = 0.0
+# specF_filt[:,:,4] = 0.0
+specF_filt[:,:,5] = 0.0
+specF_filt[:,:,6] = 0.0
+specF_filt[:,:,7] = 0.0
+# specF_filt[:,:,8] = 0.0
+specF_filt[:,:,9] = 0.0
+specF_filt[:,:,10] = 0.0
 
 if xavg:
     # Set m=/=0 to zero.

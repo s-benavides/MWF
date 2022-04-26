@@ -12,7 +12,7 @@ import scipy.ndimage as ndim
 # Choose input directory
 idir = '../'
 # Choose output directory
-odir = '../force_test_xavgpre/'
+odir = '../force_test_5mode/' # Taking modes off based on forcing.
 # Name for  saved file
 name = 'spec_xavgpre.bak'
 # Spectral truncation mode numbers
@@ -32,7 +32,26 @@ MM_new = nx_c
 M_new = 2*(MM_new-1)
 KK = int(specF.shape[1])
 specF_filt = np.zeros((N_new,M_new,KK),dtype=complex)
-specF_filt[:,0,:] = specF[:N_new,:]
+specF_filt[:,0,:] = -specF[:N_new,:] # Minus sign because now we're going to feed in <u'.grad(u')>, as a nonlinear term, not a forcing on the RHS
+
+# Setting modes to zero:
+# specF_filt[:,:,0] = 0.0 # v1, 9 modes
+# specF_filt[:,:,4] = 0.0
+
+# specF_filt[:,:,2] = 0.0 # v2, 4 modes
+# specF_filt[:,:,3] = 0.0 
+# specF_filt[:,:,5] = 0.0
+# specF_filt[:,:,6] = 0.0
+# specF_filt[:,:,7] = 0.0 
+# specF_filt[:,:,8] = 0.0
+# specF_filt[:,:,10] = 0.0
+
+specF_filt[:,:,0] = 0.0 # v3, 5 modes
+specF_filt[:,:,3] = 0.0 
+specF_filt[:,:,4] = 0.0
+specF_filt[:,:,6] = 0.0
+specF_filt[:,:,9] = 0.0 
+specF_filt[:,:,10] = 0.0
 
 with netcdf.NetCDFFile(odir+name,'w') as f:
     # Create dimensions
