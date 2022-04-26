@@ -75,6 +75,52 @@ def mpt2sp(mp,Lx,Lz):
     
     return s
 
+def div_comp(Lx,Lz,specF):
+    """
+    Load a spec-type field F. Returns the compressible and incompressible parts of that field by computing F_compressible = \nabla[-\nabla^{-2}(\nabla \cdot F)]. 
+    """
+    K0 = int((specF.shape[2]+1)/3)
+    MT = specF.shape[1] 
+    NT=  specF.shape[0]
+    
+    # Prepare x-derivative
+    ad_m1 = 1j*np.fft.fftfreq(MT,d=Lx/(MT*2*np.pi))
+    ad_m2 = ad_m1**2
+
+    # Prepare z-derivative
+    ad_n1 = 1j*np.arange(NT)*(2*np.pi/Lz)
+    ad_n2 = ad_n1**2
+    # Prepare y derivatives:
+    klist = np.arange(K0)
+    ad_k1 = (-1)**(klist)*klist*(np.pi/2) # Include ky = 0 mode.
+
+    adN,adM,adK = np.meshgrid(ad_n1,ad_m1,ad_k1,indexing='ij')
+    adN2,adM2,_ = np.meshgrid(ad_n2,ad_m2,ad_k1,indexing='ij')
+    
+    # F_c = k_i (k.F)/K^2
+    F_c = np.zeros((NT,MT,3*K0-1),dtype=complex)
+
+    # First take the divergence (it's of 'even' type)
+    div = adM*specF[:,:,:K0] + adK*specF[:,:,K0-1:2*K0-1] + adN*specF[:,:,2*K0-1:]
+
+    # Take the inverse laplacian: -nabla^(-2)
+    mask = (adN**2+adM**2-adK**2)!=0
+    div[mask] *= (adN[mask]**2+adM[mask]**2-adK[mask]**2)**(-1)
+    div[0,0,0] = 0.0
+
+    # And finally, take the gradient:
+    # u
+    F_c[:,:,:K0] = adM*div
+    # v
+    F_c[:,:,K0:2*K0-1] = -adK[:,:,1:]*div[:,:,1:] # Taking the y-derivative of an even type requires an extra minus sign.
+    # w
+    F_c[:,:,2*K0-1:] = adN*div 
+    
+    # Calculate the incompressible part by taking the difference
+    F_ic = specF - F_c
+    
+    return F_c,F_ic
+
 def load_spec(filename,intype='mpt',Retype=None):    
     """
     Load a field into spec type. Either read a state file, restress file, or calculate the spectral forces if 'intype'==SpecReForces.
@@ -281,9 +327,9 @@ def GridReForces_xavg(run,filenum,direction,Ny=None):
         Z,Y = np.meshgrid(z,y,indexing='ij')
 
         if ii==0:
-            final = np.copy(r)
+            final = -np.copy(r) # Negative sign to have the correct sign convention
         if ii==1:
-            final += np.copy(r)
+            final += -np.copy(r)
     
     return time,Re,Lx,Lz,Y,Z,final
 
@@ -364,12 +410,12 @@ def SpecReForces_xavg(run,filenum,grid=False):
         
         if direction=='x':
             out = np.zeros((s.shape[0],KK),dtype=complex)
-            out[:,0:4] = np.copy(final)
+            out[:,0:4] = -np.copy(final)
         if direction=='y':
             # If odd mode, remove the 'zero' mode used in calculations.
-            out[:,4:7] = np.copy(final[:,1:])
+            out[:,4:7] = -np.copy(final[:,1:])
         elif direction=='z':
-            out[:,7:11] = np.copy(final)
+            out[:,7:11] = -np.copy(final)
     
     return time,Re,Lx,Lz,z,out
 
@@ -448,12 +494,12 @@ def SpecReForces(filename,Retype='2d'):
 
         if direction=='x':
             spec_out = np.zeros((N,M,KK),dtype=complex)
-            spec_out[:,:,0:4] = np.copy(final)
+            spec_out[:,:,0:4] = -np.copy(final)
         if direction=='y':
             # If odd mode, remove the 'zero' mode used in calculations.
-            spec_out[:,:,4:7] = np.copy(final[:,:,1:])
+            spec_out[:,:,4:7] = -np.copy(final[:,:,1:])
         elif direction=='z':
-            spec_out[:,:,7:11] = np.copy(final)
+            spec_out[:,:,7:11] = -np.copy(final)
 
     return time,Re,Lx,Lz,spec_out
 
@@ -508,7 +554,7 @@ def GridXavg(time,Re,Lx,Lz,s,vel_field,Ny=None):
     
     return time,Re,Lx,Lz,Y,Z,r
 
-def plot_reforces(run,filenum,direction,figwidth = 12,aspect_factor=3,Ny=None):
+def plot_reforces(run,filenum,direction,figwidth = 12,aspect=1,Ny=None):
     """
     For help choosing arguments, look at help(GridReForces_xavg).
     """
@@ -519,16 +565,17 @@ def plot_reforces(run,filenum,direction,figwidth = 12,aspect_factor=3,Ny=None):
     plt.figure(figsize=(figwidth,figwidth/3))
     plt.title("Re = %.2e, Lx = %.2f, Lz = %.2f, \n Direction: %s, time= %.4f" % (Re,Lx,Lz,direction,time))
     if Ny==None:
-        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor))
+        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=aspect)
     else:
         plt.pcolor(Z,Y,r,vmin=-rbar,vmax=rbar,cmap='bwr')
-#         plt.gca().set_aspect(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor)
+        ax=plt.gca()
+        ax.set_aspect(aspect)
     plt.colorbar()
     plt.ylabel(r'$y$')
     plt.xlabel(r'$z$')
     plt.show()
 
-def plot_restress(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
+def plot_restress(filename,field,figwidth = 12,aspect=1,Ny=None):
     """
     For help choosing filenames and fields, look at help(GridReStress_xavg).
     """
@@ -539,10 +586,11 @@ def plot_restress(filename,field,figwidth = 12,aspect_factor=3,Ny=None):
     plt.figure(figsize=(figwidth,figwidth/3))
     plt.title("Re = %.2e, Lx = %.2f, Lz = %.2f, \n Field: %s, time= %.4f" % (Re,Lx,Lz,field,time))
     if Ny==None:
-        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor))
+        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=aspect)
     else:
         plt.pcolor(Z,Y,r,vmin=-rbar,vmax=rbar,cmap='bwr')
-#         plt.gca().set_aspect(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor)
+        ax=plt.gca()
+        ax.set_aspect(aspect)
     plt.colorbar()
     plt.ylabel(r'$y$')
     plt.xlabel(r'$z$')
@@ -572,7 +620,7 @@ def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8,Retype=None):
     plt.ylabel(r'$z$')
     plt.show()
     
-def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=None,Retype=None):
+def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,Ny=None,aspect=1,Retype=None):
     """
     If filename is state****.cdf.dat:
         Plots x-averaged field from filename, with a given Ny resolution (default = None, which means the choice is based on the spectral resolution).
@@ -590,10 +638,11 @@ def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,aspect_factor=3,Ny=No
     plt.figure(figsize=(figwidth,figwidth/3))
     plt.title("Re = %.2e, Lx = %.2f, Lz = %.2f, \n Field: %s, time= %.4f" % (Re,Lx,Lz,field,time))
     if Ny==None:
-        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor))
+        plt.imshow(r.T,vmin=-rbar,vmax=rbar,cmap='bwr',aspect=aspect)
     else:
         plt.pcolor(Z,Y,r,vmin=-rbar,vmax=rbar,cmap='bwr')
-#         plt.gca().set_aspect(np.shape(Z)[0]/np.shape(Z)[1]/aspect_factor)
+        ax=plt.gca()
+        ax.set_aspect(aspect)
     plt.colorbar()
     plt.ylabel(r'$y$')
     plt.xlabel(r'$z$')
