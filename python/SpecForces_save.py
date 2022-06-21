@@ -1,10 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import glob as glob
 import matplotlib.cm as cm
 import Analysis as aa
 from scipy.io import netcdf
-import scipy.ndimage as ndim
 
 ##########################
 ### Control parameters ###
