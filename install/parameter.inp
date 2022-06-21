@@ -32,5 +32,5 @@ s_restress_filt = .true. ! If true, calculates the reynolds avg and stresses bas
 i_nx_c = 64         ! If s_restress_filt, then this is the cutoff mode number in the x direction
 i_nz_c = 16         ! If s_restress_filt, then this is the cutoff mode number in the z direction
 d_avg_window = 500  ! Amount of simulation time over which to take the Reynolds average
-i_rand_seed = 20180815 ! If s_restress_filt, then this is the cutoff mode number in the z direction
+i_rand_seed = 20180815 ! Random seed
 / 
