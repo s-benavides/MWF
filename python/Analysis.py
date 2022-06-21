@@ -14,6 +14,9 @@ def read_cdf(filename,intype='mpt'):
         Re = np.copy(f.Re)
         try:
             field = np.copy(f.variables[intype].data)
+            if np.any(np.isnan(field)):
+                print("Setting location {} to zero, was nan before.".format(np.where(np.isnan(field))))
+                field[np.where(np.isnan(field))] = 0.0 # Sometimes zero modes are saved as zero
         except:
             print("Not a valid 'intype'! These are the possible options:")
             print(f.variables.keys())
@@ -127,7 +130,7 @@ def load_spec(filename,intype='mpt',Retype=None):
     
     Must specify an 'intype'. Options include 'umean_2d', which includes (umean_2d,vmean_2d,wmean_2d), 'remean1_2d', which includes (uumean,uvmean,uwmean), and 'remean2_2d', which includes (vvmean,wvmean,wwmean). If plotting forces, then intype = 'SpecReForces', you must specify Retype='2d' or 'filt', and field ('U','V', or 'W') determine the direction of the force. To choose between the three options, specify 'U', 'V', or 'W' for 'field', for positions 1, 2, and 3 in the lists above. 
     """
-    if 'state' in filename:
+    if intype=='mpt':
         # Load file
         time,Re, Lx,Lz,mpt = read_cdf(filename,intype= intype)
         # Convert to u,v,w
@@ -188,6 +191,68 @@ def GridUy(time,Re,Lx,Lz,s,vel_field,yloc):
     X,Z = np.meshgrid(x,z)
     
     return time,Re,Lx,Lz,X,Z,U
+
+def TKE(filename):
+    """
+    Produces the y-averaged turbulent KE density given the diagonal terms of the Reynolds stress tensor.    F
+    """
+    time,Re,Lx,Lz,st = load_spec(filename,intype='remean1_2d')
+    uu = st[:,:,:4]
+    time,Re,Lx,Lz,st = load_spec(filename,intype='remean2_2d')
+    vv = st[:,:,:4]
+    ww = st[:,:,7:]
+    s = 0.5*(uu+vv+ww)
+    
+    # Transform in x
+    KK = s.shape[2] 
+    nnx =int(np.ceil(s.shape[1]/2)) # MM
+    nnz =int(np.ceil(s.shape[0]))
+    spy_pad = np.hstack((s[:,:nnx,:],np.zeros((s.shape[0],1,KK)),s[:,-nnx+1:,:]))
+    gxsz = np.fft.ifft(spy_pad,axis=1)*spy_pad.shape[1]
+    
+    # Transform in z
+    U = np.fft.irfft(gxsz,n=2*nnz,axis=0)*2*nnz
+    
+    # Make grid
+    Nz,Nx,_ = U.shape
+    z = np.arange(Nz)*Lz/Nz
+    x = np.arange(Nx)*Lx/Nx
+    X,Z = np.meshgrid(x,z)
+    
+    # Square and y-average:
+    TKE = U[:,:,0]**2 + 0.5*(U[:,:,1]**2+U[:,:,2]**2+U[:,:,3]**2) 
+    
+    return time,Re,Lx,Lz,X,Z,TKE
+
+def KE(time,Re,Lx,Lz,s):
+    """
+    Produces the y-averaged KE density of a given spec field (use 'load_spec' function to load and generate the field from saved files, or create your own).
+    
+    Mainly to be used with the mean flow, or snapshots. NOTE: this is *NOT* TKE, which is another function.
+    
+    """
+    # Transform in x
+    KK = s.shape[2] 
+    nnx =int(np.ceil(s.shape[1]/2)) # MM
+    nnz =int(np.ceil(s.shape[0]))
+    spy_pad = np.hstack((s[:,:nnx,:],np.zeros((s.shape[0],1,KK)),s[:,-nnx+1:,:]))
+    gxsz = np.fft.ifft(spy_pad,axis=1)*spy_pad.shape[1]
+    
+    # Transform in z
+    U = np.fft.irfft(gxsz,n=2*nnz,axis=0)*2*nnz
+    
+    # Make grid
+    Nz,Nx,_ = U.shape
+    z = np.arange(Nz)*Lz/Nz
+    x = np.arange(Nx)*Lx/Nx
+    X,Z = np.meshgrid(x,z)
+    
+    # Square and y-average:
+    KE = U[:,:,0]**2 + 0.5*(U[:,:,1]**2+U[:,:,2]**2+U[:,:,3]**2) 
+    + 0.5*(U[:,:,4]**2+U[:,:,5]**2+U[:,:,6]**2)
+    + U[:,:,7]**2 + 0.5*(U[:,:,8]**2+U[:,:,9]**2+U[:,:,10]**2) 
+    
+    return time,Re,Lx,Lz,X,Z,KE
 
 def GridReStress_xavg(filename,intype,Ny=None):
     """
@@ -596,7 +661,7 @@ def plot_restress(filename,field,figwidth = 12,aspect=1,Ny=None):
     plt.xlabel(r'$z$')
     plt.show()
     
-def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8,Retype=None):
+def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8,Retype=None,save=False,odir=None,name=None):
     """
     If filename is state****.cdf.dat:
         Plots field at yloc from filename.
@@ -618,9 +683,12 @@ def plot_XZ(filename,field,yloc,intype='mpt',figwidth=8,Retype=None):
     ax.set_aspect(1)
     plt.xlabel(r'$x$')
     plt.ylabel(r'$z$')
+    if save:
+        plt.tight_layout()
+        plt.savefig(odir+name+'_XZ.png',dpi=150,bbox_inches='tight')
     plt.show()
     
-def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,Ny=None,aspect=1,Retype=None):
+def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,Ny=None,aspect=1,Retype=None,save=False,odir=None,name=None):
     """
     If filename is state****.cdf.dat:
         Plots x-averaged field from filename, with a given Ny resolution (default = None, which means the choice is based on the spectral resolution).
@@ -646,20 +714,23 @@ def plot_YZ_xavg(filename,field,intype='mpt',figwidth = 12,Ny=None,aspect=1,Rety
     plt.colorbar()
     plt.ylabel(r'$y$')
     plt.xlabel(r'$z$')
+    if save:
+        plt.tight_layout()
+        plt.savefig(odir+name+'_YZ.png',dpi=150,bbox_inches='tight')
     plt.show()
 
 def spectrum_calc(spec_field,Lx,Lz):
     """
-    Takes a field (of type 'spec') and outputs the power spectrum in the z direction (averaged in x) and x direction (averaged in z). Keeps the y-modes separate, so that the final spectra are two-dimensional arrays of size, e.g. (N,KK) for the z spectrum.
+    Takes a field (of type 'spec', you can feed it a single mode or a single vertical slice, but it has to be shape [N,M]) and outputs the power spectrum in the z direction (averaged in x) and x direction (averaged in z).
     
     returns kz,specz,|kx|,specx
     """
-    N,M,KK = field.shape
+    N,M = spec_field.shape
     ad_n1 = np.arange(N)*(2*np.pi/Lz)
     ad_m1 = np.fft.fftfreq(M,d=Lx/(M*2*np.pi))
-    specz = np.mean(np.abs(field),axis=1)
+    specz = np.mean(np.abs(spec_field),axis=1)
     
-    specx = np.mean(np.abs(field),axis=0)
+    specx = np.mean(np.abs(spec_field),axis=0)
     kmags = np.unique(np.abs(ad_m1))
     specx_f = np.zeros(kmags.shape)
     for m in range(M):
@@ -686,3 +757,38 @@ def plot_turb(filename,figwidth=8):
     plt.xlabel(r'$x$')
     plt.ylabel(r'$z$')
     plt.show()
+
+def nluw(u,w):
+    """
+    Takes two even parity fields u, w (which have been transformed in the x an z directions to real space) and computes the spectral coefficients for the vertical modes of u*w. 
+    """
+    ans = np.zeros(u.shape)
+    ans[:,:,0] = u[:,:,0]*w[:,:,0] + (u[:,:,1]*w[:,:,1])/2 + (u[:,:,2]*w[:,:,2])/2 + (u[:,:,3]*w[:,:,3])/2 
+    ans[:,:,1] = u[:,:,0]*w[:,:,1] + u[:,:,1]*w[:,:,0] - (u[:,:,1]*w[:,:,2])/2 - (u[:,:,2]*w[:,:,1])/2 + (u[:,:,2]*w[:,:,3])/2 + (u[:,:,3]*w[:,:,2])/2
+    ans[:,:,2] = u[:,:,0]*w[:,:,2] - (u[:,:,1]*w[:,:,1])/2 + u[:,:,2]*w[:,:,0] + (u[:,:,1]*w[:,:,3])/2 + (u[:,:,3]*w[:,:,1])/2 
+    ans[:,:,3] = u[:,:,0]*w[:,:,3] + (u[:,:,1]*w[:,:,2])/2 + (u[:,:,2]*w[:,:,1])/2 + u[:,:,3]*w[:,:,0]
+    
+    return ans
+
+def nluv(u,v):
+    """
+    Takes two fields of different parities u, v (which have been transformed in the x an z directions to real space) and computes the spectral coefficients for the vertical modes of u*v. u should be even parity and v should be odd.
+    """
+    ans = np.zeros(v.shape)
+    ans[:,:,0] = u[:,:,0]*v[:,:,0] + (u[:,:,1]*v[:,:,1])/2 + (u[:,:,2]*v[:,:,0])/2 + (u[:,:,2]*v[:,:,2])/2 + (u[:,:,3]*v[:,:,1])/2
+    ans[:,:,1] = u[:,:,0]*v[:,:,1] + (u[:,:,1]*v[:,:,0])/2 - (u[:,:,1]*v[:,:,2])/2 + (u[:,:,3]*v[:,:,0])/2
+    ans[:,:,2] = u[:,:,0]*v[:,:,2] - (u[:,:,1]*v[:,:,1])/2 + (u[:,:,2]*v[:,:,0])/2 
+
+    return ans
+
+def nlvv(v1,v2):
+    """
+    Takes two odd parity fields v1, v2 (which have been transformed in the x an z directions to real space) and computes the spectral coefficients for the vertical modes of v1*v2.   
+    """
+    ans = np.zeros((v1.shape[0],v1.shape[1],v1.shape[2]+1))
+    ans[:,:,0] = (v1[:,:,0]*v2[:,:,0])/2 + (v1[:,:,1]*v2[:,:,1])/2 + (v1[:,:,2]*v2[:,:,2])/2
+    ans[:,:,1] = (1/2)*(v1[:,:,0]*v2[:,:,1] + v1[:,:,1]*v2[:,:,0] - v1[:,:,1]*v2[:,:,2] - v1[:,:,2]*v2[:,:,1])
+    ans[:,:,2] = (1/2)*(v1[:,:,0]*v2[:,:,0] + v1[:,:,0]*v2[:,:,2] +  v1[:,:,2]*v2[:,:,0])
+    ans[:,:,3] = (1/2)*(v1[:,:,0]*v2[:,:,1] + v1[:,:,1]*v2[:,:,0] )
+
+    return ans
