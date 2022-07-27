@@ -39,7 +39,13 @@ contains
     _loop_kmn_end
     if (var_N%pH0 == 0) then
        vel_c2%Re(1,0,0)=0d0
+      ! If u1_fix == .true. then we set vel_c2(2,0,0) = f(2) here
+      if (s_u1_fixed) then
+       vel_c2%Re(2,0,0)= d_u1_in
+       vel_c2%Re(4,0,0)= 0d0
+      endif
     end if
+
     call var_mpt_copy(vel_nl,vel_onl)
     call var_mpt_copy(vel_c2,vel_c)
   end subroutine vel_TS

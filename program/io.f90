@@ -14,7 +14,7 @@
 
    character(200)        :: io_statefile
    integer               :: io_save1
-   integer,     private  :: io_KE, io_HI
+   integer,     private  :: io_KE, io_HI, io_uq
    type (mpt),  private  :: c1
    type (spec),  private  :: s1
    type (spec_xavg_odd), private :: x1o
@@ -48,9 +48,15 @@
       i_restress_save = i_restress_save + 1 ! So that it won't overwrite
       io_KE    = 20
       io_hi    = 0      
+      io_uq    = 0
       if (s_HIS) &
            io_hi    = 30
-       
+      if (s_uq)  &
+           io_uq = 40
+           if (d_theta > 0) print*, "WARNING, you are outputting (u,q), but this &
+           was only intended to be used in the theta=0 case. It is not ouputting &
+            the correct quantity now."
+
        !!! INITIAL CONDITIONS
 
        if (io_save1==0) then 
@@ -116,6 +122,15 @@
           s = 'new'
           if(io_hi/=0)  open(io_hi,status=s,position=p, file='vel_history.dat')
       endif
+      ! Check for currently existing uq.dat
+      inquire(file='uq.dat',exist=exist)
+      if (exist) then
+          s = 'old'
+          if(io_uq/=0)  open(io_uq,status=s,position=p, file='uq.dat')
+      else 
+          s = 'new'
+          if(io_uq/=0)  open(io_uq,status=s,position=p, file='uq.dat')
+      endif
       s = 'old'
 !      a = 'stream'
    end subroutine io_openfiles
@@ -128,6 +143,7 @@
       if(mpi_rnk/=0) return
       if(io_KE/=0) close(io_KE)
       if(io_hi/=0) close(io_hi)
+      if(io_uq/=0) close(io_uq)
    end subroutine io_closefiles
 
 
@@ -165,6 +181,7 @@
          call vel_mpt2phys(vel_c,vp)
          if(io_KE/=0) call io_write_energy(vp)
          if(io_hi/=0) call io_write_history(vp)
+         if(io_uq/=0) call io_write_uq(vel_c)
          if(s_tur) then
             call turb_sample(vp)
             if (modulo(tim_step,i_WT*i_MT*i_save_rate2)==0) &
@@ -946,6 +963,41 @@
       close(99, status='delete')
 
    end subroutine io_write_energy
+
+!--------------------------------------------------------------------------
+!  write to uq file
+!--------------------------------------------------------------------------
+   subroutine io_write_uq(mpt_in)
+      type (mpt), intent(in) :: mpt_in
+      type (mpt)      :: fluc
+      type (phys)      :: fluc_phy
+      double precision :: u,q
+
+      ! First copy mpt array
+      fluc%Re(:,:,:) = mpt_in%Re(:,:,:)
+      fluc%Im(:,:,:) = mpt_in%Im(:,:,:)
+      
+      ! Extract u and remove it from fluc.
+      ! Note that (in first cpu) u[2,0,0] = mpt[2,0,0]=f(y), so no need to call mpt2spec
+      if (var_N%pH0 == 0) then
+        u = mpt_in%Re(2,0,0) + 1 ! Adding laminar flow
+        
+        ! Remove in fluc
+        fluc%Re(2,0,0) = 0.0d0
+        fluc%Im(2,0,0) = 0.0d0
+      endif
+
+#ifdef _MPI
+        call mpi_barrier(mpi_comm_world, mpi_er)
+#endif
+
+      call vel_mpt2phys(fluc,fluc_phy)
+      call vel_energy(fluc_phy,q)
+
+      if(mpi_rnk/=0) return
+      write(io_uq,'(3e20.12)')  tim_t, u, q
+      
+   end subroutine io_write_uq
 
 !--------------------------------------------------------------------------
 !  write to history file

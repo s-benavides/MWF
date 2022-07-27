@@ -8,8 +8,8 @@
    double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM          = 16!64!4096!512!2048!4096 !Streamwise
-   integer,          parameter :: i_NN          = 64!180!1024!512!2048!4096 !Spanwise
+   integer,          parameter :: i_MM          = 64!16!64! !Streamwise
+   integer,          parameter :: i_NN          = 64!64!180! !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
@@ -59,7 +59,11 @@
    integer                     :: i_nz_c          ! If s_restress_filt, this is the cut-off mode number in the z direction
    integer                     :: i_restress_save ! Counter for the output number of the reynolds stress io_write
    integer                     :: i_count         ! Counter for number of iterations in current averaging window, used in vel_restress_calc
-   integer                     :: i_rand_seed       ! Random seed for initial conditions
+   ! Other
+   integer                     :: i_rand_seed     ! Random seed for initial conditions
+   logical                     :: s_u1_fixed      ! If true, sets f(2) = vel_c(2,0,0) to u1_in
+   double precision            :: d_u1_in         ! Value of f(2) to be set
+   logical                     :: s_uq            ! If true, outputs t,u,q in uq.dat (at same rate as KE writing).
 
    !---------------------------------------------------------------------------
    !  Fixed parameters
@@ -100,7 +104,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0,i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed, s_u1_fixed, d_u1_in, s_uq
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -132,6 +136,9 @@ contains
       call mpi_bcast(i_nz_c,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_avg_window,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_rand_seed,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_u1_fixed,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(d_u1_in,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_uq,1,mpi_logical,0,mpi_comm_world,mpi_er)
 #endif
 
       d_theta = d_thdeg/180d0*d_PI

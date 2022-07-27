@@ -33,4 +33,7 @@ i_nx_c = 64         ! If s_restress_filt, then this is the cutoff mode number in
 i_nz_c = 16         ! If s_restress_filt, then this is the cutoff mode number in the z direction
 d_avg_window = 500  ! Amount of simulation time over which to take the Reynolds average
 i_rand_seed = 20180815 ! Random seed
+s_u1_fixed = .false.! If true, will fix f(2) = mpt(2,0,0) to d_u1_in.
+d_u1_in = -0.1      ! Value for which to fix f(2) = mpt(2,0,0)
+s_uq = .false.      ! If true, will output t,u,q in uq.dat at rate i_save_rate2.
 / 
