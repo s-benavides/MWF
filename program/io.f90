@@ -62,7 +62,7 @@
        if (io_save1==0) then 
         ! Make initial condition and save it, then load it as state.cdf.in 
         call var_randphasempt(vel_c) 
-        if (d_gamma.lt.0) then
+        if (d_decay.lt.0) then
             call var_maskmpt(vel_c) 
         end if
         !Calculate energy of this IC
