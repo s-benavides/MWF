@@ -149,9 +149,14 @@
       mm = m
       if (mm > i_MM1) mm = m - i_M
       mn = dsqrt(1d0*mm * mm + 1d0*nn * nn)
-      mval = exp(d_decay*mn)/mn  !! dividing by mn(=|k|) because u ~ mpt/k_perp. This will hopefully result in an actual energy spectrum that has this exponential shape.
-      c%Re(:,m,n) = c%Re(:,m,n) * mval
-      c%Im(:,m,n) = c%Im(:,m,n) * mval
+      if (mn.gt.0) then
+        mval = exp(d_decay*mn)/mn  !! dividing by mn(=|k|) because u ~ mpt/k_perp. This will hopefully result in an actual energy spectrum that has this exponential shape.
+        c%Re(:,m,n) = c%Re(:,m,n) * mval
+        c%Im(:,m,n) = c%Im(:,m,n) * mval
+      else
+        c%Re(:,m,n) = 0.0
+        c%Im(:,m,n) = 0.0
+      end if
    _loop_mn_end
    end subroutine var_maskmpt
 
