@@ -149,7 +149,7 @@
       mm = m
       if (mm > i_MM1) mm = m - i_M
       mn = dsqrt(1d0*mm * mm + 1d0*nn * nn)
-      mval = 0.005 * 10 ** (-mn/3d0)
+      mval = exp(d_gamma*mn)
       c%Re(:,m,n) = c%Re(:,m,n) * mval
       c%Im(:,m,n) = c%Im(:,m,n) * mval
    _loop_mn_end
@@ -300,7 +300,7 @@ _loop_mn_end
      type (mpt), intent(out) :: c
 !      integer,parameter :: seed = 82342
       double precision :: r
-      integer :: state_size
+      integer :: state_size, i_kICz_temp, i_kICx_temp
       integer, allocatable, dimension(:) :: state
       _loop_kmn_vars
       
@@ -309,11 +309,21 @@ _loop_mn_end
       allocate(state(state_size))
       state=i_rand_seed
       call RANDOM_SEED(put=state)
+
+      !! If d_gamma >=0, keep the usual i_kICx_temp, etc.
+      if (d_gamma.ge.0) then
+          i_kICx_temp = i_kICx
+          i_kICz_temp = i_kICz
+      else
+      !! else, we will put energy into all modes, then mask in io_precompute
+          i_kICx_temp = i_M
+          i_kICz_temp = i_NN
+      endif
       
       _loop_kmn_begin
       mm = m
       if (mm > i_MM1) mm = m - i_M 
-      if ((abs(mm).lt.i_kICx).and.(abs(nn).lt.i_kICz)) then
+      if ((abs(mm).lt.i_kICx_temp).and.(abs(nn).lt.i_kICz_temp)) then
           call RANDOM_NUMBER(r)
           c%Re(k,m,n)=cos(2*d_PI*r)
           c%Im(k,m,n)=sin(2*d_Pi*r)
