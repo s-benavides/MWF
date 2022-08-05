@@ -12,6 +12,7 @@ d_Re = 70.3125      ! Reynolds number
 d_Lx = 180.0        ! Size in x-direction (units of half the channel height)
 d_Lz = 80.0         ! Size in z-direction (units of half the channel height)
 d_E0 = 0.001        ! Initial KE
+d_gamma = 0.0       ! Initial exponential decay profile, if gamma>=0, it will use the cutoffs kICx, etc. below.
 i_kICx = 10         ! Cutoff mode number for random initial condition (in x-direction)
 i_kICz = 10         ! Cutoff mode number for random initial condition (in z-direction)
 i_save_rate1 = 50000 ! How many time-steps between state****.cdf.dat output (also spec files)
@@ -34,6 +35,6 @@ i_nz_c = 16         ! If s_restress_filt, then this is the cutoff mode number in
 d_avg_window = 500  ! Amount of simulation time over which to take the Reynolds average
 i_rand_seed = 20180815 ! Random seed
 s_u1_fixed = .false.! If true, will fix f(2) = mpt(2,0,0) to d_u1_in.
-d_u1_in = -0.1      ! Value for which to fix f(2) = mpt(2,0,0)
+d_u1_in = -0.1      ! Initial condition for mpt(2,0,0). If s_u1_fixed = True, then also value for which to fix f(2) = mpt(2,0,0)
 s_uq = .false.      ! If true, will output t,u,q in uq.dat at rate i_save_rate2.
 / 
