@@ -8,8 +8,8 @@
    double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM          = 64!16!64! !Streamwise
-   integer,          parameter :: i_NN          = 64!64!180! !Spanwise
+   integer,          parameter :: i_MM          = 64!64!16!64! !Streamwise
+   integer,          parameter :: i_NN          = 180!64!64!180! !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
@@ -19,6 +19,7 @@
    double precision            :: d_Lz          != 80d0!4096d0!1024d0!960d0! Spanwise
    double precision            :: d_E0          ! Initial condition KE
    double precision            :: d_decay       ! Initial exponential decay profile, if decay>=0, it will use the cutoffs kICx, etc.
+   logical                     :: s_half_IC     ! If True, then initializes with turbulence only in the top half of the domain (2D ICs, no v initialized)
    double precision            :: d_alpha       != 2d0*d_PI/d_Lx!0.5d0
    double precision            :: d_gamma       != 2d0*d_PI/d_Lz!0.5d0
 
@@ -105,7 +106,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0, d_decay, i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed, s_u1_fixed, d_u1_in, s_uq
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0, d_decay, s_half_IC, i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed, s_u1_fixed, d_u1_in, s_uq
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -117,6 +118,7 @@ contains
       call mpi_bcast(d_Lz,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_E0,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_decay,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_half_IC,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_kICx,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_kICz,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_save_rate1,1,mpi_integer,0,mpi_comm_world,mpi_er)
