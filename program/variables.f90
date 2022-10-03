@@ -159,6 +159,27 @@
       end if
    _loop_mn_end
    end subroutine var_maskmpt
+   
+   subroutine var_mask_half(c)
+      type (mpt), intent(inout) :: c
+   _loop_mn_vars
+   _loop_mn_begin
+      mm = m
+      if (mm > i_MM1) mm = m - i_M
+      c%Re(2,m,n) = c%Re(1,m,n)
+      c%Re(3,m,n) = 0.0
+      c%Re(4,m,n) = 0.0
+      c%Re(5,m,n) = 0.0
+      c%Re(6,m,n) = 0.0
+      c%Re(7,m,n) = 0.0
+      c%Im(2,m,n) = c%Im(1,m,n)
+      c%Im(3,m,n) = 0.0
+      c%Im(4,m,n) = 0.0
+      c%Im(5,m,n) = 0.0
+      c%Im(6,m,n) = 0.0
+      c%Im(7,m,n) = 0.0
+   _loop_mn_end
+   end subroutine var_mask_half
 
    subroutine var_doubleX(c)
       type (mpt), intent(inout) :: c
@@ -346,7 +367,7 @@ _loop_mn_end
        end if
       _loop_kmn_end
     end subroutine var_randphasempt
-    
+
     subroutine var_simplempt(c)
       type (mpt), intent(out) :: c
       if (var_N%pH0==0) then
