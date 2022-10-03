@@ -62,6 +62,13 @@
        if (io_save1==0) then 
         ! Make initial condition and save it, then load it as state.cdf.in 
         call var_randphasempt(vel_c) 
+        
+        ! If s_half_IC = .true., initialize only flow in the top half of the
+        ! domain.
+        if (s_half_IC) then
+            call var_mask_half(vel_c) 
+        end if
+
         if (d_decay.lt.0) then
             call var_maskmpt(vel_c) 
         end if
@@ -78,7 +85,7 @@
         call vel_mpt2phys(vel_c,vp)
         call vel_energy(vp,E)
         
-        ! Set the u1 mode to d_u1_0 
+        ! Set the u1 mode to d_u1_in
         ! Note: (rest of vel_c[:,0,0] = 0, see randphasempt)
         if (var_N%pH0 == 0) then
            vel_c%Re(2,0,0)= d_u1_in
