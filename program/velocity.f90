@@ -528,6 +528,12 @@ contains
     q3_ = q3_ + udotu(4)
     _loop_mn_end
 
+    ! Normalize
+    q0_ = q0_ /( i_3M * i_3N) 
+    q1_ = q1_ /( i_3M * i_3N) 
+    q2_ = q2_ /( i_3M * i_3N) 
+    q3_ = q3_ /( i_3M * i_3N) 
+
 #ifdef _MPI
     call mpi_allreduce( q0_, q0, 1, mpi_double_precision,  &
          mpi_sum, mpi_comm_world, mpi_er)
