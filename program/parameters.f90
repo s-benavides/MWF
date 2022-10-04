@@ -66,6 +66,7 @@
    logical                     :: s_u1_fixed      ! If true, sets f(2) = vel_c(2,0,0) to u1_in
    double precision            :: d_u1_in         ! Value of f(2) to be set
    logical                     :: s_uq            ! If true, outputs t,u,q in uq.dat (at same rate as KE writing).
+   logical                     :: s_tke_modes     ! If true, outputs t,q0,q1,q2,q3 in tke_modes.dat (at same rate as KE writing).
 
    !---------------------------------------------------------------------------
    !  Fixed parameters
@@ -106,7 +107,7 @@ contains
       integer :: itmp
 
      ! Load parameters from file 'parameter.inp'
-     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0, d_decay, s_half_IC, i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed, s_u1_fixed, d_u1_in, s_uq
+     NAMELIST / parameters / d_Re, d_Lx, d_Lz, d_E0, d_decay, s_half_IC, i_kICx,i_kICz, i_save_rate1, i_save_rate2, i_maxtstep, d_cpuhours, d_dt, d_time, i_tstep, d_thdeg, d_HYPO, i_PHYPO, d_drag, d_vdrag, s_restress_xavg, s_restress_2d, s_restress_filt, i_nx_c,i_nz_c, d_avg_window, i_rand_seed, s_u1_fixed, d_u1_in, s_uq, s_tke_modes
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=parameters)
@@ -143,6 +144,7 @@ contains
       call mpi_bcast(s_u1_fixed,1,mpi_logical,0,mpi_comm_world,mpi_er)
       call mpi_bcast(d_u1_in,1,mpi_double_precision,0,mpi_comm_world,mpi_er)
       call mpi_bcast(s_uq,1,mpi_logical,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(s_tke_modes,1,mpi_logical,0,mpi_comm_world,mpi_er)
 #endif
 
       d_theta = d_thdeg/180d0*d_PI
