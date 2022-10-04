@@ -497,6 +497,50 @@ contains
     _loop_mn_end
 
   end subroutine vel_restress_filt_calc
+  
+  subroutine vel_tke_modes(mpt_in,q0,q1,q2,q3)
+  !! This subroutine takes the current fields and calculates the TKE, then outputs the horizontal average of each mode separately (to be output as a time-series).
+  !! Uses global variables: vel_c as input. q0,q1,q2,q3 as outputs. 
+
+    type(mpt), intent(in) :: mpt_in
+    type(spec) :: u
+    double precision :: udotu(i_K0)
+    type(phys) :: p
+    double precision, intent(out) :: q0,q1,q2,q3
+    double precision :: q0_,q1_,q2_,q3_
+
+    _loop_mn_vars
+
+    ! Takes current mpt field and converts to spec
+    call var_mpt2spec(mpt_in,u)
+    
+    ! -------- TKE calculation  -------
+    ! Calculate uu, vv, ww
+    call tra_spec2phys(u,p)
+
+    _loop_phy_begin
+    udotu = 0.5*nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) + & ! uu
+            0.5*nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) + & ! vv
+            0.5*nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) !ww
+    q0_ = q0_ + udotu(1)
+    q1_ = q1_ + udotu(2)
+    q2_ = q2_ + udotu(3)
+    q3_ = q3_ + udotu(4)
+    _loop_mn_end
+
+#ifdef _MPI
+    call mpi_allreduce( q0_, q0, 1, mpi_double_precision,  &
+         mpi_sum, mpi_comm_world, mpi_er)
+    call mpi_allreduce( q1_, q1, 1, mpi_double_precision,  &
+         mpi_sum, mpi_comm_world, mpi_er)
+    call mpi_allreduce( q2_, q2, 1, mpi_double_precision,  &
+         mpi_sum, mpi_comm_world, mpi_er)
+    call mpi_allreduce( q3_, q3, 1, mpi_double_precision,  &
+         mpi_sum, mpi_comm_world, mpi_er)
+#endif
+
+  end subroutine vel_tke_modes
+
 
 end module velocity
 
