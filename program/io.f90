@@ -14,7 +14,7 @@
 
    character(200)        :: io_statefile
    integer               :: io_save1
-   integer,     private  :: io_KE, io_HI, io_uq
+   integer,     private  :: io_KE, io_HI, io_uq, io_tke_modes
    type (mpt),  private  :: c1
    type (spec),  private  :: s1
    type (spec_xavg_odd), private :: x1o
@@ -49,6 +49,7 @@
       io_KE    = 20
       io_hi    = 0      
       io_uq    = 0
+      io_tke_modes  = 0
       if (s_HIS) &
            io_hi    = 30
       if (s_uq)  &
@@ -56,6 +57,8 @@
            if (d_theta > 0) print*, "WARNING, you are outputting (u,q), but this &
            was only intended to be used in the theta=0 case. It is not ouputting &
             the correct quantity now."
+      if (s_tke_modes)  &
+           io_tke_modes = 50
 
        !!! INITIAL CONDITIONS
 
@@ -63,12 +66,6 @@
         ! Make initial condition and save it, then load it as state.cdf.in 
         call var_randphasempt(vel_c) 
         
-        ! If s_half_IC = .true., initialize only flow in the top half of the
-        ! domain.
-        if (s_half_IC) then
-            call var_mask_half(vel_c) 
-        end if
-
         if (d_decay.lt.0) then
             call var_maskmpt(vel_c) 
         end if
@@ -147,6 +144,15 @@
           s = 'new'
           if(io_uq/=0)  open(io_uq,status=s,position=p, file='uq.dat')
       endif
+      ! Check for currently existing tke_modes.dat
+      inquire(file='tke_modes.dat',exist=exist)
+      if (exist) then
+          s = 'old'
+          if(io_tke_modes/=0)  open(io_tke_modes,status=s,position=p, file='tke_modes.dat')
+      else 
+          s = 'new'
+          if(io_tke_modes/=0)  open(io_tke_modes,status=s,position=p, file='tke_modes.dat')
+      endif
       s = 'old'
 !      a = 'stream'
    end subroutine io_openfiles
@@ -160,6 +166,7 @@
       if(io_KE/=0) close(io_KE)
       if(io_hi/=0) close(io_hi)
       if(io_uq/=0) close(io_uq)
+      if(io_tke_modes/=0) close(io_tke_modes)
    end subroutine io_closefiles
 
 
@@ -198,6 +205,7 @@
          if(io_KE/=0) call io_write_energy(vp)
          if(io_hi/=0) call io_write_history(vp)
          if(io_uq/=0) call io_write_uq(vel_c)
+         if(io_tke_modes/=0) call io_write_tke_modes(vel_c)
          if(s_tur) then
             call turb_sample(vp)
             if (modulo(tim_step,i_WT*i_MT*i_save_rate2)==0) &
@@ -272,6 +280,12 @@
          print*,' gamma:',d,' --> ', d_gamma
 
       call io_load_mpt(f,'mpt',vel_c)
+      
+      ! If s_half_IC = .true., initialize only flow in the top half of the
+      ! domain.
+      if (s_half_IC) then
+          call var_mask_half(vel_c) 
+      end if
 
       e=nf90_close(f)
 #ifdef _MPI
@@ -1014,6 +1028,20 @@
       write(io_uq,'(3e20.12)')  tim_t, u, q
       
    end subroutine io_write_uq
+
+!--------------------------------------------------------------------------
+!  write to tke_modes file
+!--------------------------------------------------------------------------
+   subroutine io_write_tke_modes(mpt_in)
+      type (mpt), intent(in) :: mpt_in
+      double precision :: q0,q1,q2,q3
+
+      call vel_tke_modes(mpt_in,q0,q1,q2,q3)
+
+      if(mpi_rnk/=0) return
+      write(io_tke_modes,'(5e20.12)')  tim_t, q0, q1, q2, q3
+      
+   end subroutine io_write_tke_modes
 
 !--------------------------------------------------------------------------
 !  write to history file
