@@ -38,4 +38,5 @@ i_rand_seed = 20180815 ! Random seed
 s_u1_fixed = .false.! If true, will fix f(2) = mpt(2,0,0) to d_u1_in.
 d_u1_in = 0.0      ! Initial condition for mpt(2,0,0). If s_u1_fixed = True, then also value for which to fix f(2) = mpt(2,0,0)
 s_uq = .false.      ! If true, will output t,u,q in uq.dat at rate i_save_rate2.
+s_tke_modes = .false.  ! If true, will output t,q0,q1,q2,q3 in tke_modes.dat at rate i_save_rate2.
 / 
