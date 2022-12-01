@@ -29,6 +29,10 @@
       double precision     :: Im(i_K0-1, 0:i_Np-1)
    end type spec_xavg_odd
    
+   type spec_1D
+      double precision     :: Re(0:i_Np-1)
+      double precision     :: Im(0:i_Np-1)
+   end type spec_1D
    
    type tran
       double precision     :: Re(i_KK,0:i_NN1, 0:i_Mp-1)
