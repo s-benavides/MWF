@@ -13,12 +13,13 @@
    save
 
    character(200)        :: io_statefile
-   integer               :: io_save1
+   integer               :: io_save1,i_save_1D
    integer,     private  :: io_KE, io_HI, io_uq, io_tke_modes
    type (mpt),  private  :: c1
    type (spec),  private  :: s1
    type (spec_xavg_odd), private :: x1o
    type (spec_xavg_even), private :: x1e
+   type (spec_1D), private :: x1p
    character(200) :: oloc='RUNNING'
  contains
  
@@ -34,7 +35,7 @@
 
      ! Check
      ! Namelist for input files
-     NAMELIST / status / io_save1, turb_save2, i_restress_save
+     NAMELIST / status / io_save1, turb_save2, i_restress_save, i_save_1D
        if (mpi_rnk==0) then
           open(1,file='parameter.inp',status='unknown',form='formatted')
           read(1,NML=status)
@@ -44,19 +45,22 @@
       call mpi_bcast(io_save1,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(turb_save2,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_restress_save,1,mpi_integer,0,mpi_comm_world,mpi_er)
+      call mpi_bcast(i_save_1D,1,mpi_integer,0,mpi_comm_world,mpi_er)
 #endif
       i_restress_save = i_restress_save + 1 ! So that it won't overwrite
+      i_save_1D = i_save_1D + 1 ! So that it won't overwrite
       io_KE    = 20
       io_hi    = 0      
       io_uq    = 0
       io_tke_modes  = 0
       if (s_HIS) &
            io_hi    = 30
-      if (s_uq)  &
+      if (s_uq)  then
            io_uq = 40
            if (d_theta > 0) print*, "WARNING, you are outputting (u,q), but this &
            was only intended to be used in the theta=0 case. It is not ouputting &
             the correct quantity now."
+      end if
       if (s_tke_modes)  &
            io_tke_modes = 50
 
@@ -229,6 +233,15 @@
        if (s_restress_xavg) call vel_restress_reset()
        if (s_restress_2d) call vel_restress_2d_reset()
      end if
+     
+     ! 1D profiles
+      if ((s_1D_prof).and.(modulo(tim_step,i_save_rate_1D)==0)) then
+        ! Save profiles
+        call io_save_1D()
+        
+        ! Updates counters
+        i_save_1D = i_save_1D+1
+      endif
 
 ! Every 50 i_save_rate2 reopen vel_energy to
 ! overcome buffering and force output
@@ -767,6 +780,96 @@
 
    end subroutine io_save_restress_filt
 
+!--------------------------------------------------------------------------
+!  Save 1D profiles
+!--------------------------------------------------------------------------
+
+   subroutine io_save_1D()
+      character(4) :: cnum
+      integer :: e, f
+      integer :: nd,kd, ReImd, dims(2)
+      integer :: ssu,ssv,ssw,sstke
+      type(spec_1D) :: u_1D,v_1D,w_1D,tke_1D
+
+      write(cnum,'(I4.4)') i_save_1D
+
+      if(mpi_rnk==0) then
+         print*, ' saving 1D profiles'//cnum//'  t=', tim_t
+         e=nf90_create('profiles'//cnum//'.cdf.dat', nf90_clobber, f)
+         e=nf90_put_att(f, nf90_global, 't', tim_t)
+         e=nf90_put_att(f, nf90_global, 'tstep', tim_step)
+         e=nf90_put_att(f, nf90_global, 'Re', d_Re)
+         e=nf90_put_att(f, nf90_global, 'alpha', d_alpha)
+         e=nf90_put_att(f, nf90_global, 'gamma', d_gamma)
+
+         e=nf90_def_dim(f, 'N', i_NN, nd)
+         e=nf90_def_dim(f, 'ReIm', 2, ReImd)
+         dims = (/nd,ReImd/)
+
+         call io_define_1D_prof(f, 'u', dims, ssu)
+         call io_define_1D_prof(f, 'v', dims, ssv)
+         call io_define_1D_prof(f, 'w', dims, ssw)
+         call io_define_1D_prof(f, 'TKE', dims, sstke)
+         
+         e=nf90_enddef(f)
+      end if
+
+      call vel_1D_prof_calc(vel_c,u_1D,v_1D,w_1D,tke_1D)
+
+      call io_save_1D_prof(f,ssu,u_1D)
+      call io_save_1D_prof(f,ssv,v_1D)
+      call io_save_1D_prof(f,ssw,w_1D)
+      call io_save_1D_prof(f,sstke,tke_1D)
+
+      if(mpi_rnk==0)  &
+         e=nf90_close(f)
+   end subroutine io_save_1D
+   
+   
+   subroutine io_define_1D_prof(f,nm,dims, id)
+      integer,      intent(in) :: f, dims(2)
+      character(*), intent(in) :: nm
+      integer, intent(out) :: id
+      integer :: e
+      e=nf90_def_var(f, nm, nf90_double, dims, id)  
+      e=nf90_put_att(f, id,  'N', i_NN)
+   end subroutine io_define_1D_prof
+   
+   subroutine io_save_1D_prof(f,id,a)
+      integer,     intent(in) :: f, id
+      type (spec_1D), intent(in) :: a
+      integer :: e
+      
+#ifndef _MPI
+      e=nf90_put_var(f,id,a%Re(0:i_NN1), start=(/1,1/))
+      e=nf90_put_var(f,id,a%Im(0:i_NN1), start=(/1,2/))
+
+#else
+      integer :: r, pN0,pN1
+
+      if(mpi_rnk==0) then
+         e=nf90_put_var(f,id,a%Re(0:var_N%pH1), start=(/1,1/))
+         e=nf90_put_var(f,id,a%Im(0:var_N%pH1), start=(/1,2/))         
+         do r = 1, mpi_sze-1
+            pN0 = var_N%pH0_(r)
+            pN1 = var_N%pH1_(r)
+            mpi_tg = r
+            call mpi_recv( x1p%Re(0), (pN1+1), mpi_double_precision,  &
+               r, mpi_tg, mpi_comm_world, mpi_st, mpi_er)
+            call mpi_recv( x1p%Im(0), (pN1+1), mpi_double_precision,  &
+               r, mpi_tg, mpi_comm_world, mpi_st, mpi_er)
+            e=nf90_put_var(f,id,x1p%Re(0:pN1), start=(/pN0+1,1/))
+            e=nf90_put_var(f,id,x1p%Im(0:pN1), start=(/pN0+1,2/))
+         end do
+      else
+         mpi_tg = mpi_rnk
+         call mpi_send( a%Re(0), (var_N%pH1+1), mpi_double_precision,  &
+            0, mpi_tg, mpi_comm_world, mpi_er)
+         call mpi_send( a%Im(0), (var_N%pH1+1), mpi_double_precision,  &
+            0, mpi_tg, mpi_comm_world, mpi_er)
+      end if
+#endif      
+   end subroutine io_save_1D_prof
 
 !--------------------------------------------------------------------------
 !  Save coll variable
