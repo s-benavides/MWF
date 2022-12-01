@@ -547,6 +547,55 @@ contains
 
   end subroutine vel_tke_modes
 
+  subroutine vel_1D_prof_calc(vel_c,u_1D,v_1D,w_1D,tke_1D)
+  !! This subroutine takes the current fields and calculates 1d profiles of x-averaged u, v, w at y=0, and the x- and y-averaged 'tke'= (v^2 + w^2)/2.
+  !! Uses global variables: vel_c as inputs. and u_1D,v_1D,w_1D, and tke_1D as outputs. The outputs are of the type 'spec_1d' (shape = (0:i_Np-1)0
+
+    type(mpt), intent(in) :: vel_c
+    type(spec) :: u,nl_tmp
+    type(spec_xavg_even) :: ubar,wbar
+    type(spec_xavg_odd) :: vbar
+    type(spec_1D), intent(out) :: u_1D,v_1D,w_1D,tke_1D
+    type(phys) :: p,mult_aux
+    _loop_mn_vars
+
+    ! Takes current mpt field and converts to spec
+    call var_mpt2spec(vel_c,u)
+    
+    ! -------- VELOCITIES  -------
+    ! Calculate the x-avg
+    ubar%Re = reshape(u%Re(1:i_K0,0,:),shape(ubar%Re))
+    ubar%Im = reshape(u%Im(1:i_K0,0,:),shape(ubar%Im))
+    vbar%Re = reshape(u%Re(i_K0+1:2*i_K0-1,0,:),shape(vbar%Re))
+    vbar%Im = reshape(u%Im(i_K0+1:2*i_K0-1,0,:),shape(vbar%Im))
+    wbar%Re = reshape(u%Re(2*i_K0:3*i_K0-1,0,:),shape(wbar%Re))
+    wbar%Im = reshape(u%Im(2*i_K0:3*i_K0-1,0,:),shape(wbar%Im))
+    
+    ! Calculate at y = 0:
+    u_1D%Re = reshape(ubar%Re(1,:) + ubar%Re(3,:),shape(u_1D%Re))
+    u_1D%Im = reshape(ubar%Im(1,:) + ubar%Im(3,:),shape(u_1D%Im))
+    v_1D%Re = reshape(vbar%Re(1,:) + vbar%Re(3,:),shape(v_1D%Re))
+    v_1D%Im = reshape(vbar%Im(1,:) + vbar%Im(3,:),shape(v_1D%Im))
+    w_1D%Re = reshape(wbar%Re(1,:) + wbar%Re(3,:),shape(w_1D%Re))
+    w_1D%Im = reshape(wbar%Im(1,:) + wbar%Im(3,:),shape(w_1D%Im))
+
+    ! -------- KINETIC ENERGY  -------
+    ! Calculate v^2 and w^2
+    call tra_spec2phys(u,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)=nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) ! v'v'
+    mult_aux%Re(i_K0+1:2*i_K0-1,n,m)=nluv(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(i_K0+1:2*i_K0-1,n,m)) ! w'v'
+    mult_aux%Re(2*i_K0:3*i_K0-1,n,m)=nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w'w'
+    _loop_mn_end
+    
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! x-average of v^2 and w^2
+    tke_1D%Re = reshape((nl_tmp%Re(1,0,:)+nl_tmp%Re(2*i_K0,0,:))/2,shape(tke_1D%Re))
+    tke_1D%Im = reshape((nl_tmp%Im(1,0,:)+nl_tmp%Im(2*i_K0,0,:))/2,shape(tke_1D%Im))
+    
+  end subroutine vel_1D_prof_calc
+
 
 end module velocity
-
