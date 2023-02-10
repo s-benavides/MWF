@@ -542,7 +542,7 @@
       character(4) :: cnum
       integer :: e, f
       integer :: nd,kd, ReImd, dims(3)
-      integer :: ssu,ssv,ssw,ssuu,ssuv,ssuw,ssww,sswv,ssvv 
+      integer :: ssu,ssv,ssw,ssuu,ssuv,ssuw,ssww,sswv,ssvv,ssdiss
 
       write(cnum,'(I4.4)') i_restress_save
 
@@ -567,6 +567,7 @@
          call io_define_restress(f, 'uwmean', dims, ssuw,i_K0)
          call io_define_restress(f, 'wwmean', dims, ssww,i_K0)
          call io_define_restress(f, 'vvmean', dims, ssvv,i_K0)
+         call io_define_restress(f, 'dissmean', dims, ssdiss,i_K0)
          
          e=nf90_enddef(f)
       end if
@@ -577,6 +578,7 @@
       call io_save_restress_even(f,ssuw,uwmean)
       call io_save_restress_even(f,ssww,wwmean)
       call io_save_restress_even(f,ssvv,vvmean)
+      call io_save_restress_even(f,ssdiss,dissmean)
 
       if(mpi_rnk==0)  &
          e=nf90_close(f)
