@@ -699,4 +699,42 @@ _loop_mn_end
      
    end subroutine var_spec_grad
    
+   subroutine var_spec_grady(s,uy,wy)
+     type (spec), intent(in)  :: s
+     type (spec), intent(out) :: uy,wy
+     integer :: k,k1,k2,k3
+     !! Takes in a spec variable u and computes the y-derivate.
+     !! Outputs dy(v) in the first slot of uy, dy(u) in the second
+     !! slot of uy, and dy(w) in the second slot of wy. 
+
+     _loop_mn_vars
+     _loop_mn_begin
+
+     do k=0,i_K0-1
+        k1 = k+1
+        k2=k+i_K0
+        k3 = k+2*i_K0
+    
+        uy%Re(k1,m,n) =  s%Re(k2,m,n)*ad_k1(k) ! v_y
+        uy%Im(k1,m,n) =  s%Im(k2,m,n)*ad_k1(k) ! v_y
+        
+        uy%Re(k2,m,n) = -s%Re(k1,m,n)*ad_k1(k) ! u_y
+        uy%Im(k2,m,n) = -s%Im(k1,m,n)*ad_k1(k) ! u_y
+
+        uy%Re(k3,m,n) =  0.0
+        uy%Im(k3,m,n) =  0.0
+        
+        wy%Re(k1,m,n) =  0.0
+        wy%Im(k1,m,n) =  0.0
+
+        wy%Re(k2,m,n) = -s%Re(k3,m,n)*ad_k1(k) ! w_y
+        wy%Im(k2,m,n) = -s%Im(k3,m,n)*ad_k1(k) ! w_y
+
+        wy%Re(k3,m,n) =  0.0
+        wy%Im(k3,m,n) =  0.0
+     end do 
+     _loop_mn_end
+     
+   end subroutine var_spec_grady
+   
  end module variables
