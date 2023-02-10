@@ -16,7 +16,7 @@ module velocity
   type (mpt)  :: vel_c,vel_c2,vel_onl,vel_nl,lhs,rhs
   type(spec) :: umean_2d,remean1_2d,remean2_2d,spec_in
   !umean_2d = (umean,vmean,wmean), remean1_2d = (uumean,uvmean,uwmean), remean2_2d = (vvmean,wvmean,wwmean)
-  type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean
+  type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean,dissmean
   type(spec_xavg_odd) :: vmean,uvmean,wvmean
   logical :: nst
   
@@ -202,8 +202,8 @@ contains
   !! uumean,uvmean,uwmean,vvmean,wvmean,wwmean as outputs. The outputs are of the
   !! type 'spec_xavg_even' (shape = (i_K0,0:i_Np-1), uumean, etc.), 'spec_xavg_odd' (shape = (i_K1,0:i_Np-1), uvmean, etc.)
 
-    type(spec) :: u,up,nl_tmp
-    type(spec_xavg_even) :: ubar,wbar,uubar,uwbar,wwbar,vvbar
+    type(spec) :: u,up,nl_tmp,upx,upy,wpy,upz
+    type(spec_xavg_even) :: ubar,wbar,uubar,uwbar,wwbar,vvbar,dissbar
     type(spec_xavg_odd) :: vbar,uvbar,wvbar
     type(phys) :: p,mult_aux
     integer, intent(in) ::  i_count
@@ -310,6 +310,56 @@ contains
     vvmean%Re = vvmean%Re + (vvbar%Re - vvmean%Re)/i_count ! <v'v'>
     vvmean%Im = vvmean%Im + (vvbar%Im - vvmean%Im)/i_count ! <v'v'>
 
+    ! -------- DISSIPATION RATE  -------
+    ! <grad(u')^2> + <grad(v')^2> and <grad(w')^2>
+
+    ! Calculate derivatives
+    call var_spec_grad(up,upx,upz) ! upx = {u_x,v_x,w_x}, upz = {u_z,v_z,w_z}
+    call var_spec_grady(up,upy,wpy) ! upy = {v_y,u_y,0}, wpy = {0,w_y,0}
+
+    ! Calculate u'_x**2 + v'_x**2 + w'_x**2
+    call tra_spec2phys(upx,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)=nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) & ! u_x'u_x'
+                           +nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) & ! v_x'v_x'
+                           +nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w_x'w_x'
+    _loop_mn_end
+    
+    ! Calculate u'_z**2 + v'_z**2 + w'_z**2
+    call tra_spec2phys(upz,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)= mult_aux%Re(1:i_K0,n,m) + nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) & ! u_z'u_z'
+                                                     + nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) & ! v_z'v_z'
+                                                     + nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w_z'w_z'
+    _loop_mn_end
+    
+    ! Calculate u'_y**2 + v'_y**2
+    call tra_spec2phys(upy,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)= mult_aux%Re(1:i_K0,n,m) + nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) & ! v_y'v_y'
+                                                     + nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) ! u_y'u_y'
+    _loop_mn_end
+    
+    ! Calculate w'_y**2
+    call tra_spec2phys(wpy,p)
+
+    _loop_phy_begin
+    mult_aux%Re(1:i_K0,n,m)= mult_aux%Re(1:i_K0,n,m) + nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) ! w_y'w_y'
+    _loop_mn_end
+
+
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! x-average to get bar(dissipation) etc.
+    dissbar%Re = reshape(nl_tmp%Re(1:i_K0,0,:),shape(dissbar%Re))
+    dissbar%Im = reshape(nl_tmp%Im(1:i_K0,0,:),shape(dissbar%Im))
+
+    ! Update the mean
+    dissmean%Re = dissmean%Re + (dissbar%Re - dissmean%Re)/i_count 
+    dissmean%Im = dissmean%Im + (dissbar%Im - dissmean%Im)/i_count 
   end subroutine vel_restress_calc
 
   subroutine vel_restress_reset()
@@ -331,6 +381,8 @@ contains
     wwmean%Im = 0.0*wwmean%Im
     vvmean%Re = 0.0*vvmean%Re
     vvmean%Im = 0.0*vvmean%Im
+    dissmean%Re = 0.0*dissmean%Re
+    dissmean%Im = 0.0*dissmean%Im
   end subroutine vel_restress_reset
 
   subroutine vel_restress_2d_calc(i_count)
