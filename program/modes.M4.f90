@@ -80,6 +80,15 @@ contains
     ans(3)=v(1)*v(2)
   end function nlvv
   
+  function nlvv2(v1,v2) result(ans)
+    double precision :: ans(0:i_K1)
+    double precision,intent(in) :: v1(1:i_K1),v2(1:i_K1)
+    ans(0)=v1(1)*v2(1)/2 + v1(2)*v2(2)/2 + v1(3)*v2(3)/2
+    ans(1)=v2(2)*v1(1)/2 - v2(2)*v1(3)/2 + v1(2)*v2(1)/2 - v1(2)*v2(3)/2
+    ans(2)=v1(1)*v2(1)/2 + v1(1)*v2(3)/2 + v1(3)*v2(1)/2
+    ans(3)=v1(1)*v2(2)/2 + v2(1)*v1(2)/2
+  end function nlvv2
+  
   double precision function velU(V,y) 
     double precision, intent(in) :: V(i_KK),y
     velU= V(1) &
