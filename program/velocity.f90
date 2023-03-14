@@ -16,7 +16,7 @@ module velocity
   type (mpt)  :: vel_c,vel_c2,vel_onl,vel_nl,lhs,rhs
   type(spec) :: umean_2d,remean1_2d,remean2_2d,spec_in
   !umean_2d = (umean,vmean,wmean), remean1_2d = (uumean,uvmean,uwmean), remean2_2d = (vvmean,wvmean,wwmean)
-  type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean,dissmean
+  type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean,dissmean,transpmean
   type(spec_xavg_odd) :: vmean,uvmean,wvmean
   logical :: nst
   
@@ -203,9 +203,9 @@ contains
   !! type 'spec_xavg_even' (shape = (i_K0,0:i_Np-1), uumean, etc.), 'spec_xavg_odd' (shape = (i_K1,0:i_Np-1), uvmean, etc.)
 
     type(spec) :: u,up,nl_tmp,upx,upy,wpy,upz
-    type(spec_xavg_even) :: ubar,wbar,uubar,uwbar,wwbar,vvbar,dissbar
+    type(spec_xavg_even) :: ubar,wbar,uubar,uwbar,wwbar,vvbar,dissbar,transpbar
     type(spec_xavg_odd) :: vbar,uvbar,wvbar
-    type(phys) :: p,mult_aux
+    type(phys) :: p,pz,mult_aux
     integer, intent(in) ::  i_count
     _loop_mn_vars
 
@@ -321,9 +321,11 @@ contains
     call tra_spec2phys(upx,p)
 
     _loop_phy_begin
-    mult_aux%Re(1:i_K0,n,m)=nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) & ! u_x'u_x'
-                           +nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) & ! v_x'v_x'
-                           +nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w_x'w_x'
+    mult_aux%Re(1:i_K0,n,m)=                           nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)) & ! u_x'u_x'
+                                                     + nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)) & ! v_x'v_x'
+                                                     + nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)) ! w_x'w_x'
+    mult_aux%Re(i_K0+1:2*i_K0-1,n,m)= 0.0
+    mult_aux%Re(2*i_K0:3*i_K0-1,n,m)= 0.0
     _loop_mn_end
     
     ! Calculate u'_z**2 + v'_z**2 + w'_z**2
@@ -360,6 +362,42 @@ contains
     ! Update the mean
     dissmean%Re = dissmean%Re + (dissbar%Re - dissmean%Re)/i_count 
     dissmean%Im = dissmean%Im + (dissbar%Im - dissmean%Im)/i_count 
+    
+    !!!! Transport terms (focus on zero vertical mode, interested only in q0 budget for now)
+    ! dz(<u'dz(u')> + <v'dz(v')> + <w'dz(w')>)/Re (the rest average to zero)
+    ! u'
+    call tra_spec2phys(up,p)
+    ! dz(u')
+    call tra_spec2phys(upz,pz)
+    
+    _loop_phy_begin
+    ! Calculate u'*dz(u') + v'*dz(v') + w'*dz(w')
+    mult_aux%Re(1:i_K0,n,m)=                           nluw(p%Re(1:i_K0,n,m),pz%Re(1:i_K0,n,m))/d_Re & ! u'dz(u)'
+                                                     + nlvv2(p%Re(i_K0+1:2*i_K0-1,n,m),pz%Re(i_K0+1:2*i_K0-1,n,m))/d_Re & ! v'dz(v)'
+                                                     + nluw(p%Re(2*i_K0:3*i_K0-1,n,m),pz%Re(2*i_K0:3*i_K0-1,n,m))/d_Re ! w'dz(w)'
+    
+    ! Calculate -w'*(u'^2 + v'^2 + w'^2)/2 and add to transport term
+    mult_aux%Re(1:i_K0,n,m)= mult_aux%Re(1:i_K0,n,m) - nluw(p%Re(2*i_K0:3*i_K0-1,n,m),nluw(p%Re(1:i_K0,n,m),p%Re(1:i_K0,n,m)))/2 & ! w'*(u'u')
+                                                     - nluw(p%Re(2*i_K0:3*i_K0-1,n,m),nlvv(p%Re(i_K0+1:2*i_K0-1,n,m)))/2 & ! w'v'v'
+                                                     - nluw(p%Re(2*i_K0:3*i_K0-1,n,m),nluw(p%Re(2*i_K0:3*i_K0-1,n,m),p%Re(2*i_K0:3*i_K0-1,n,m)))/2 ! w'w'w'
+    mult_aux%Re(i_K0+1:2*i_K0-1,n,m)= 0.0
+    mult_aux%Re(2*i_K0:3*i_K0-1,n,m)= 0.0
+    _loop_mn_end
+    
+    call tra_phys2spec(mult_aux,nl_tmp)
+
+    ! Finally, calculate the z derivative of this
+    call var_spec_grad(nl_tmp,upx,upz)
+
+    ! x-average to get bar(transport term) etc.
+    transpbar%Re = reshape(upz%Re(1:i_K0,0,:),shape(transpbar%Re))
+    transpbar%Im = reshape(upz%Im(1:i_K0,0,:),shape(transpbar%Im))
+
+    ! Update the mean
+    transpmean%Re = transpmean%Re + (transpbar%Re - transpmean%Re)/i_count 
+    transpmean%Im = transpmean%Im + (transpbar%Im - transpmean%Im)/i_count 
+    
+
   end subroutine vel_restress_calc
 
   subroutine vel_restress_reset()
@@ -383,6 +421,8 @@ contains
     vvmean%Im = 0.0*vvmean%Im
     dissmean%Re = 0.0*dissmean%Re
     dissmean%Im = 0.0*dissmean%Im
+    transpmean%Re = 0.0*transpmean%Re
+    transpmean%Im = 0.0*transpmean%Im
   end subroutine vel_restress_reset
 
   subroutine vel_restress_2d_calc(i_count)
