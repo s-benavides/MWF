@@ -9,23 +9,19 @@ MODSOBJ		= mpi.o parameters.o \
 		modes.o variables.o transform.o velocity.o \
 		turb.o io.o 
 
-NETCDFPATH = /home/santiago_b/.local
-##NETCDFPATH = /home/software/netcdf/4.6.3
-FFTWPATH = /home/santiago_b/FFTW3_GHOST
-MPIPATH = /cm/shared/engaging/openmpi/2.0.3
+NETCDFPATH = /media/apps/avx512-2021/software/netCDF-Fortran/4.6.1-gompi-2023a
+FFTWPATH = /media/apps/avx512-2021/software/FFTW.MPI/3.3.10-gompi-2023a
+MPIPATH = /media/apps/avx512-2021/software/OpenMPI/4.1.5-GCC-12.3.0
 
-COMPILER        = mpif90
-##COMPFLAGS       = -ffree-line-length-none -x f95-cpp-input -c -O3 \
-
-COMPFLAGS       = -cpp -traditional-cpp -O3 -funroll-loops -ffree-line-length-none -x f95-cpp-input -c \
-		-I$(MPIPATH)/include/ -I$(MPIPATH)/lib/\
-		-I$(NETCDFPATH)/include/ \
+COMPILER        = /media/apps/avx512-2021/software/GCCcore/13.2.0/bin/gfortran
+COMPFLAGS       = -fallow-argument-mismatch -cpp -traditional-cpp -ffree-line-length-none -x f95-cpp-input -fPIC -O3 -march=native -ffast-math -funroll-loops -c \
+		-I$(MPIPATH)/include/ -I$(MPIPATH)/lib/ \
+		-I$(NETCDFPATH)/include -I/media/apps/avx512-2021/software/bzip2/1.0.8-GCCcore-12.3.0/include -I/media/apps/avx512-2021/software/netCDF/4.9.2-gompi-2023a/include -DgFortran \
 		-I$(FFTWPATH)/include/
-LIBS            = -lm \
-		-L$(NETCDFPATH)/lib -lnetcdff -L$(NETCDFPATH)/lib -lhdf5_hl -lhdf5 -lm -ldl -lz -lcurl \
-		-L$(FFTWPATH)/lib -lfftw3 \
-		-L$(MPIPATH)/lib/ \
-		-pthread -Wl,-rpath -Wl,$(MPIPATH)/lib -Wl,--enable-new-dtags -lmpi_usempi -lmpi_mpifh -lmpi
+
+LIBS            = $(FFTWPATH)/lib/libfftw3.a -L$(FFTWPATH)/lib/ \
+		$(NETCDFPATH)/lib/libnetcdff.a -L$(NETCDFPATH)/lib/ -L$(NETCDFPATH)/lib64/ -lnetcdf \
+		-L$(MPIPATH)/lib -L/media/apps/avx512-2021/software/hwloc/2.9.1-GCCcore-12.3.0/lib -L/media/apps/avx512-2021/software/libevent/2.1.12-GCCcore-12.3.0/lib -Wl,-rpath -Wl,$(MPIPATH)/lib -Wl,-rpath -Wl,/media/apps/avx512-2021/software/hwloc/2.9.1-GCCcore-12.3.0/lib -Wl,-rpath -Wl,/media/apps/avx512-2021/software/libevent/2.1.12-GCCcore-12.3.0/lib -Wl,--enable-new-dtags -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi  ## 'mpif90 -show' output
 
 #------------------------------------------------------------------------
 
