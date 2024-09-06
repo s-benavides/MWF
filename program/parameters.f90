@@ -8,8 +8,8 @@
    double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM          = 64!64!16!64! !Streamwise
-   integer,          parameter :: i_NN          = 768!64!64!180! !Spanwise
+   integer,          parameter :: i_MM          = 512  !Streamwise
+   integer,          parameter :: i_NN          = 192  !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
@@ -60,7 +60,6 @@
    double precision            :: d_avg_time      ! Active count for amount of time currently in average
    integer                     :: i_nx_c          ! If s_restress_filt, this is the cut-off mode number in the x direction
    integer                     :: i_nz_c          ! If s_restress_filt, this is the cut-off mode number in the z direction
-   integer                     :: i_restress_save ! Counter for the output number of the reynolds stress io_write
    integer                     :: i_count         ! Counter for number of iterations in current averaging window, used in vel_restress_calc
    ! Other
    integer                     :: i_rand_seed     ! Random seed for initial conditions
