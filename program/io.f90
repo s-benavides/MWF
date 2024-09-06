@@ -13,7 +13,7 @@
    save
 
    character(200)        :: io_statefile
-   integer               :: io_save1,i_save_1D
+   integer               :: io_save1,i_save_1D,i_restress_save
    integer,     private  :: io_KE, io_HI, io_uq, io_tke_modes
    type (mpt),  private  :: c1
    type (spec),  private  :: s1
@@ -47,8 +47,6 @@
       call mpi_bcast(i_restress_save,1,mpi_integer,0,mpi_comm_world,mpi_er)
       call mpi_bcast(i_save_1D,1,mpi_integer,0,mpi_comm_world,mpi_er)
 #endif
-      i_restress_save = i_restress_save + 1 ! So that it won't overwrite
-      i_save_1D = i_save_1D + 1 ! So that it won't overwrite
       io_KE    = 20
       io_hi    = 0      
       io_uq    = 0
@@ -105,11 +103,12 @@
             print*, 'starting from state'// cnum
         endif
         io_statefile = 'state'//cnum//'.cdf.dat'
+        
       endif
 
       !!! SPEC_IN 
       inquire(file='spec.cdf.in',exist=exist)
-      if (exist) call io_load_spec('spec.cdf.in',spec_in)
+      if (exist) call io_load_spec('spec.cdf.in','spec',spec_in)
    end subroutine io_precompute 
  
 
@@ -219,13 +218,21 @@
 
      ! Reynolds stresses
      if ((d_avg_time > d_avg_window).and.((s_restress_xavg).or.(s_restress_2d).or.(s_restress_filt))) then
+       i_restress_save = i_restress_save + 1 
        ! Exports Reynolds averages and stresses
        if (s_restress_xavg) call io_save_xavg()
        if (s_restress_2d) call io_save_restress_2d()
        if (s_restress_filt) call io_save_restress_filt()
+
+        ! Save i_count and d_avg_time
+        if (mpi_rnk==0) then
+        open(1,file='count_avg_time.txt',position='append')
+         write(1,10) i_restress_save, i_count, d_avg_time
+   10    format( I4.4, I20.12,E20.12 )
+         close(1)
+        endif
        
        ! Updates counters
-       i_restress_save = i_restress_save + 1 
        i_count = 0
        d_avg_time = 0.0
 
@@ -236,11 +243,11 @@
      
      ! 1D profiles
       if ((s_1D_prof).and.(modulo(tim_step,i_save_rate_1D)==0)) then
+        ! Updates counters
+        i_save_1D = i_save_1D+1
         ! Save profiles
         call io_save_1D()
         
-        ! Updates counters
-        i_save_1D = i_save_1D+1
       endif
 
 ! Every 50 i_save_rate2 reopen vel_energy to
@@ -308,10 +315,70 @@
    end subroutine io_load_state
 
 !--------------------------------------------------------------------------
+!  Load average files - continue averaging from previous
+!--------------------------------------------------------------------------
+   subroutine io_load_xavg()   
+      character(4) :: cnum
+      character(200)        :: loadfile_e,loadfile_o
+      integer :: e, f, i, rd
+      double precision :: d
+
+      if(mpi_rnk==0)      print*, "Loading xavg, number: ",i_restress_save
+      write(cnum,'(I4.4)') i_restress_save
+      loadfile_e = 'restress_even'//cnum//'.cdf.dat'
+      loadfile_o = 'restress_odd'//cnum//'.cdf.dat'
+
+     !!! EVEN
+      e=nf90_open(loadfile_e, nf90_nowrite, f)      
+      if(e/=nf90_noerr) then
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'restress file not found!'
+      end if
+
+      call io_load_even(f,'umean',umean)
+      call io_load_even(f,'wmean',wmean)
+      call io_load_even(f,'uumean',uumean)
+      call io_load_even(f,'uwmean',uwmean)
+      call io_load_even(f,'wwmean',wwmean)
+      call io_load_even(f,'vvmean',vvmean)
+      call io_load_even(f,'dissmean',dissmean)
+      call io_load_even(f,'transpmean',transpmean)
+
+      e=nf90_close(f)
+#ifdef _MPI
+      call mpi_barrier(mpi_comm_world, mpi_er)
+#endif
+
+     !!! ODD
+      e=nf90_open(loadfile_o, nf90_nowrite, f)      
+      if(e/=nf90_noerr) then
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'restress file not found!'
+      end if
+
+      call io_load_odd(f,'vmean',vmean)
+      call io_load_odd(f,'uvmean',uvmean)
+      call io_load_odd(f,'wvmean',wvmean)
+
+      e=nf90_close(f)
+#ifdef _MPI
+      call mpi_barrier(mpi_comm_world, mpi_er)
+#endif
+
+   end subroutine io_load_xavg
+
+!--------------------------------------------------------------------------
 !  Load spec file
 !--------------------------------------------------------------------------
-   subroutine io_load_spec(io_specfile,u)
+   subroutine io_load_spec(io_specfile,nm,u)
       integer :: e, f, i
+      character(*),  intent(in)  :: nm
       character(*),  intent(in) :: io_specfile
       type (spec),   intent(out) :: u
       integer :: K__, M__, N__
@@ -331,8 +398,8 @@
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      e=nf90_inq_varid(f,'spec', i)
-      if(e/=nf90_noerr)  print*, 'Field spec not found!'
+      e=nf90_inq_varid(f,nm, i)
+      if(e/=nf90_noerr)  print*, 'Field spec not found!', nm
       if(e/=nf90_noerr)  stop 'io_load_spec'
       e=nf90_get_att(f,i, 'KK',  K__)
       e=nf90_get_att(f,i, 'MM',  M__)
@@ -410,6 +477,80 @@
       e=nf90_get_var(f,i, a%Im(:,:,:),start=(/1,1,var_N%pH0+1,2/))
       
     end subroutine io_load_mpt
+
+   subroutine io_load_even(f,nm, a)
+      integer,          intent(in)  :: f
+      character(*),     intent(in)  :: nm
+      type (spec_xavg_even),  intent(out) :: a
+      integer :: N1,nn,e,i
+      integer :: K__, M__, N__,K1,K2
+      integer :: m,n
+      logical :: error=.false.
+          
+      e=nf90_inq_varid(f,nm, i)
+      if(e/=nf90_noerr)  print*, 'Field '//nm//' not found!'
+      if(e/=nf90_noerr)  stop 'io_load_coll'
+      e=nf90_get_att(f,i, 'K',  K__)
+      e=nf90_get_att(f,i, 'N',  N__)
+      if(K__ /=i_K0)  error=.true.
+      if(N__ /=i_NN) error=.true.
+
+      if(mpi_rnk==0) then
+         if(K__ /=i_K0)  print*, nm, ' K :', K__, ' --> ',i_K0 
+         if(N__ /=i_NN)  print*, nm, ' N :', N__,' --> ',i_NN 
+      end if
+      if (error) then
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'wrong state size (even)'
+      end if
+      
+      a%Re = 0d0
+      a%Im = 0d0
+      
+      e=nf90_get_var(f,i, a%Re(:,:),start=(/1,var_N%pH0+1,1/))
+      e=nf90_get_var(f,i, a%Im(:,:),start=(/1,var_N%pH0+1,2/))
+      
+    end subroutine io_load_even
+
+   subroutine io_load_odd(f,nm, a)
+      integer,          intent(in)  :: f
+      character(*),     intent(in)  :: nm
+      type (spec_xavg_odd),  intent(out) :: a
+      integer :: N1,nn,e,i
+      integer :: K__, M__, N__,K1,K2
+      integer :: m,n
+      logical :: error=.false.
+          
+      e=nf90_inq_varid(f,nm, i)
+      if(e/=nf90_noerr)  print*, 'Field '//nm//' not found!'
+      if(e/=nf90_noerr)  stop 'io_load_coll'
+      e=nf90_get_att(f,i, 'K',  K__)
+      e=nf90_get_att(f,i, 'N',  N__)
+      if(K__ /=i_K1)  error=.true.
+      if(N__ /=i_NN) error=.true.
+
+      if(mpi_rnk==0) then
+         if(K__ /=i_K1)  print*, nm, ' K :', K__, ' --> ',i_K1 
+         if(N__ /=i_NN)  print*, nm, ' N :', N__,' --> ',i_NN 
+      end if
+      if (error) then
+#ifdef _MPI
+         call mpi_barrier(mpi_comm_world, mpi_er)
+         call mpi_finalize(mpi_er)
+#endif
+         stop 'wrong state size (odd)'
+      end if
+      
+      a%Re = 0d0
+      a%Im = 0d0
+      
+      e=nf90_get_var(f,i, a%Re(:,:),start=(/1,var_N%pH0+1,1/))
+      e=nf90_get_var(f,i, a%Im(:,:),start=(/1,var_N%pH0+1,2/))
+      
+    end subroutine io_load_odd
 
    subroutine io_load_mpt_old(f,nm, a)
       integer,          intent(in)  :: f
@@ -704,7 +845,7 @@
       character(4) :: cnum
       integer :: e, f
       integer :: md,nd,kd, ReImd, dims(4)
-      integer :: mss,rss1,rss2
+      integer :: mss,KEss,rss1,rss2
 
       write(cnum,'(I4.4)') i_restress_save
 
@@ -725,6 +866,7 @@
 
          dims = (/kd,md,nd,ReImd/)
          call io_define_spec(f, 'umean_2d', dims, mss)
+         call io_define_spec(f, 'KE_mean', dims, KEss)
          call io_define_spec(f, 'remean1_2d', dims, rss1)
          call io_define_spec(f, 'remean2_2d', dims, rss2)
 
@@ -732,6 +874,7 @@
       end if
 
       call io_save_spec(f,mss, umean_2d)
+      call io_save_spec(f,KEss, KE_mean)
       call io_save_spec(f,rss1,remean1_2d)
       call io_save_spec(f,rss2, remean2_2d)
 
