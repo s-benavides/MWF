@@ -36,7 +36,10 @@ PROGRAM MAIN
    contains
 
    subroutine initialise()
+      character(4) :: cnum
+      integer :: i_tmp,row
       logical :: file_exist
+      character(200) :: loadfile
 
       call mpi_precompute()
       if(mpi_rnk==0) then
@@ -55,6 +58,32 @@ PROGRAM MAIN
 
        call clk_time(d_start)
        call io_load_state()
+       if ((i_restress_save.gt.0).and.((s_restress_xavg).or.(s_restress_2d))) then
+           ! Load count, and avg_time
+           if (mpi_rnk==0) then
+             open(1,file='count_avg_time.txt',status='unknown')
+             do row=1,i_restress_save
+                 read(1,*) i_tmp, i_count, d_avg_time
+             end do
+             close(1)
+
+             print*, 'Continuing previous averages. count = ',i_count,', avg_time = ',d_avg_time
+           endif
+#ifdef _MPI
+           call mpi_bcast(i_count,1,mpi_integer,0,mpi_comm_world,mpi_er)
+           call mpi_bcast(d_avg_time,1,MPI_DOUBLE_PRECISION,0,mpi_comm_world,mpi_er)
+#endif
+          ! Load averages into arrays
+           if (s_restress_xavg) call io_load_xavg()
+           if (s_restress_2d) then 
+               write(cnum,'(I4.4)') i_restress_save
+               loadfile = 'restress_2d'//cnum//'.cdf.dat'
+               call io_load_spec(loadfile,'umean_2d',umean_2d)
+               call io_load_spec(loadfile,'KE_mean',KE_mean)
+               call io_load_spec(loadfile,'remean1_2d',remean1_2d)
+               call io_load_spec(loadfile,'remean2_2d',remean2_2d)
+           endif 
+       endif ! Load averages
        call clk_time(d_stop)
 #ifdef _CPUTIME
        if(mpi_rnk==0)       print*, ' CPU loadtime  = ', int((d_stop-d_start)/6d1), ' mins.'
@@ -152,6 +181,7 @@ PROGRAM MAIN
 
 
     subroutine cleanup()
+      character(4) :: cnum
       logical :: file_exist
    
       if(mpi_rnk==0) then
@@ -166,8 +196,24 @@ PROGRAM MAIN
       end if
       
       call io_closefiles()
-       call clk_time(d_start)
+      call clk_time(d_start)
       call io_save_state()
+        ! Reynolds stresses
+        if ((s_restress_xavg).or.(s_restress_2d).or.(s_restress_filt)) then
+           i_restress_save = i_restress_save + 1 
+           ! Exports Reynolds averages and stresses
+           if (s_restress_xavg) call io_save_xavg()
+           if (s_restress_2d) call io_save_restress_2d()
+           if (s_restress_filt) call io_save_restress_filt()
+
+            ! Save i_count and d_avg_time
+            if (mpi_rnk==0) then
+            open(1,file='count_avg_time.txt',position='append')
+             write(1,10) i_restress_save, i_count, d_avg_time
+       10    format( I4.4, I20.12,E20.12 )
+             close(1)
+            endif
+        endif ! Re stresses
        call clk_time(d_stop)
 #ifdef _CPUTIME
        if(mpi_rnk==0)       print*, ' CPU savetime  = ', int((d_stop-d_start)/6d1), ' mins.'
