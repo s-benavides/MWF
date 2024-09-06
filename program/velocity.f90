@@ -14,7 +14,7 @@ module velocity
   
   type (phys) :: vel_p
   type (mpt)  :: vel_c,vel_c2,vel_onl,vel_nl,lhs,rhs
-  type(spec) :: umean_2d,remean1_2d,remean2_2d,spec_in
+  type(spec) :: umean_2d,remean1_2d,remean2_2d,spec_in,KE_mean
   !umean_2d = (umean,vmean,wmean), remean1_2d = (uumean,uvmean,uwmean), remean2_2d = (vvmean,wvmean,wwmean)
   type(spec_xavg_even) :: umean,wmean,uumean,uwmean,wwmean,vvmean,dissmean,transpmean
   type(spec_xavg_odd) :: vmean,uvmean,wvmean
@@ -53,6 +53,7 @@ contains
   subroutine vel_precompute()
     call var_spec_init(spec_in) 
     call var_spec_init(umean_2d) 
+    call var_spec_init(KE_mean) 
     call var_spec_init(remean1_2d) 
     call var_spec_init(remean2_2d) 
     call var_mpt_init(vel_c)
@@ -429,8 +430,8 @@ contains
   !! This subroutine takes the current fields and updates the average values and the Reynolds stresses
   !! These are full 2d, and the time-mean is updated.
   !! Uses global variables: i_count, vel_c as inputs. and umean_2d,vmean_2d,wmean_2d
-  !! uumean_2d,uvmean_2d,uwmean_2d,vvmean_2d,wvmean_2d,wwmean_2d as outputs. The outputs are of the
-  !! type 'spec' 
+  !! uumean_2d,uvmean_2d,uwmean_2d,vvmean_2d,wvmean_2d,wwmean_2d, KE_mean as outputs. The outputs are of the
+  !! type 'spec'. Note that KE_mean is the spectrum of u^2 so although it is of type 'spec', it only has a real part.
 
     type(spec) :: u,up,nl_tmp
     type(phys) :: p,mult_aux
@@ -445,6 +446,7 @@ contains
     ! Then update the mean
     umean_2d%Re = umean_2d%Re + (u%Re - umean_2d%Re)/i_count 
     umean_2d%Im = umean_2d%Im + (u%Im - umean_2d%Im)/i_count  
+    KE_mean%Re = KE_mean%Re + ((u%Re)**2/2+(u%Im)**2/2 - KE_mean%Re)/i_count  
 
     ! -------- REYNOLDS STRESSES  -------
     ! <u'u'>, <u'v'> and <u'w'>
@@ -485,6 +487,8 @@ contains
   subroutine vel_restress_2d_reset()
     umean_2d%Re = 0.0*umean_2d%Re
     umean_2d%Im = 0.0*umean_2d%Im
+    KE_mean%Re = 0.0*KE_mean%Re
+    KE_mean%Im = 0.0*KE_mean%Im
     remean1_2d%Re = 0.0*remean1_2d%Re
     remean1_2d%Im = 0.0*remean1_2d%Im
     remean2_2d%Re = 0.0*remean2_2d%Re
