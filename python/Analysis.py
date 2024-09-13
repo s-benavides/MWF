@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.io import netcdf
+from scipy.io import netcdf_file
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import glob as glob
@@ -8,7 +8,7 @@ def read_cdf(filename,intype='mpt'):
     """
     Loads mean-pol-tor formulation from file
     """
-    with netcdf.NetCDFFile(filename,'r') as f:
+    with netcdf_file(filename,'r') as f:
         alpha = np.copy(f.alpha)
         gamma = np.copy(f.gamma)
         Re = np.copy(f.Re)
@@ -194,7 +194,7 @@ def GridUy(time,Re,Lx,Lz,s,vel_field,yloc):
 
 def TKE(filename):
     """
-    Produces the y-averaged turbulent KE density given the diagonal terms of the Reynolds stress tensor.    F
+    Produces the y-averaged turbulent KE density given the diagonal terms of the Reynolds stress tensor. 
     """
     time,Re,Lx,Lz,st = load_spec(filename,intype='remean1_2d')
     uu = st[:,:,:4]
@@ -219,8 +219,8 @@ def TKE(filename):
     x = np.arange(Nx)*Lx/Nx
     X,Z = np.meshgrid(x,z)
     
-    # Square and y-average:
-    TKE = U[:,:,0]**2 + 0.5*(U[:,:,1]**2+U[:,:,2]**2+U[:,:,3]**2) 
+    # y-average:
+    TKE = U[:,:,0]
     
     return time,Re,Lx,Lz,X,Z,TKE
 
@@ -507,7 +507,7 @@ def SpecReForces(filename,Retype='2d'):
 
         for ii,field in enumerate(recomp):
 
-            with netcdf.NetCDFFile(filename,'r') as f:
+            with netcdf_file(filename,'r') as f:
                 KK = f.dimensions['KK']
                 M = f.dimensions['M']
                 N = f.dimensions['N']
@@ -568,6 +568,72 @@ def SpecReForces(filename,Retype='2d'):
 
     return time,Re,Lx,Lz,spec_out
 
+def SpecDeriv(time,Re,Lx,Lz,s,direction):
+    """
+    Computes derivative of a 'spec' type field s, in direction specified.
+    Direction options: 'x', 'y', or 'z'
+    
+    Returns time,Re,Lx,Lz,sx,sy,sz
+    
+    Note that sx,sz, and sy will have different shapes based on the derivative operation.
+    """
+    N,M,KK = s.shape
+    K0 = int((KK+1)/3)
+    
+    if direction == 'x':
+        ad_k1 = np.zeros(KK)
+        ad_n1 = np.zeros(N)
+        # Prepare x derivatives:
+        ad_m1 = np.fft.fftfreq(M,d=Lx/(M*2*np.pi))
+        _,adM,_ = np.meshgrid(ad_n1,ad_m1,ad_k1, indexing='ij')
+        
+        spec_out = s*adM*1j
+        
+        sx = spec_out[:,:,:4]
+        sy = spec_out[:,:,4:7]
+        sz = spec_out[:,:,7:]
+        
+        return time,Re,Lx,Lz,sx,sy,sz
+    
+    elif direction == 'z':
+        ad_k1 = np.zeros(KK)
+        ad_m1 = np.zeros(M)
+        # Prepare z derivatives:
+        ad_n1 = np.arange(N)*(2*np.pi/Lz)
+        adN,_,_ = np.meshgrid(ad_n1,ad_m1,ad_k1, indexing='ij')
+        
+        spec_out = s*adN*1j
+        
+        sx = spec_out[:,:,:4]
+        sy = spec_out[:,:,4:7]
+        sz = spec_out[:,:,7:]
+        
+        return time,Re,Lx,Lz,sx,sy,sz
+    
+    elif direction == 'y':
+        ad_n1 = np.zeros(N)
+        ad_m1 = np.zeros(M)
+        # Prepare y derivatives:
+        klist = np.arange(K0)
+        # even parts
+        ad_k1 = (-1)**(klist[1:]+1)*klist[1:]*(np.pi/2)
+        _,_,adK = np.meshgrid(ad_n1,ad_m1,ad_k1, indexing='ij')
+        
+        sx = s[:,:,1:4]*adK
+        sz = s[:,:,8:]*adK
+        
+        # odd part
+        ad_k1 = (-1)**(klist)*klist*(np.pi/2)
+        _,_,adK = np.meshgrid(ad_n1,ad_m1,ad_k1, indexing='ij')
+    
+        sy = s[:,:,3:7]*adK
+        
+        return time,Re,Lx,Lz,sx,sy,sz
+    else:
+        print("Please specify a direction: x, y, or z.")
+        return
+
+
 def GridXavg(time,Re,Lx,Lz,s,vel_field,Ny=None):
     """
     Produces an x-averaged velocity field on a y-z plane. 
@@ -618,6 +684,60 @@ def GridXavg(time,Re,Lx,Lz,s,vel_field,Ny=None):
     Z,Y = np.meshgrid(z,y,indexing='ij')
     
     return time,Re,Lx,Lz,Y,Z,r
+
+def GridFull(time,Re,Lx,Lz,s,vel_field,Ny=None):
+    """
+    Produces a 3D velocity field. 
+    
+    GridFull(time,Re,Lx,Lz,s,vel_field,Ny=None). Possible vel_fields are U,V,W
+    """
+    if vel_field=='U':
+        ymode=0
+        K = 4
+    elif vel_field == 'W':
+        ymode = 7
+        K = 4
+    elif vel_field == 'V':
+        ymode = 4
+        K=4
+    else:
+        print("Not valid vel_field, returning")
+        return
+    
+    dirs = {'U':'x','V':'y','W':'z'}
+    
+    Ly = 2
+    
+    if Ny==None:
+        Ny = (K-1)*2
+        y = Ly*np.arange(Ny)/(Ny-1) - Ly/2
+    else:
+        y = np.linspace(-1.,1,Ny)
+    
+    ry = np.zeros((s.shape[0],s.shape[1],Ny),dtype=complex)
+    # Convert the horizontal mean to real space in y 
+    if (vel_field=='U' or vel_field=='W'):
+        for ii in range(len(y)):
+            ry[:,:,ii] = s[:,:,ymode] + np.sin(np.pi*y[ii]/2)*s[:,:,ymode+1] + np.cos(np.pi*y[ii])*s[:,:,ymode+2]+ np.sin(3*np.pi*y[ii]/2)*s[:,:,ymode+3]
+    else:
+        for ii in range(len(y)):
+            ry[:,:,ii] = np.cos(np.pi*y[ii]/2)*s[:,:,ymode] + np.sin(np.pi*y[ii])*s[:,:,ymode+1] + np.cos(3*np.pi*y[ii]/2)*s[:,:,ymode+2]
+
+    # Transform in x
+    nnx =int(np.ceil(ry.shape[1]/2))
+    nnz =int(np.ceil(ry.shape[0]))
+    spy_pad = np.hstack((ry[:,:nnx,:],np.zeros((ry.shape[0],1,ry.shape[2])),ry[:,-nnx+1:,:]))
+    gxsz = np.fft.ifft(spy_pad,axis=1)*spy_pad.shape[1]
+    
+    # Transform in z
+    U = np.fft.irfft(gxsz,n=2*nnz,axis=0)*2*nnz
+    
+    # Make grid
+    Nz,Nx,_ = U.shape
+    z = np.arange(Nz)*Lz/Nz
+    x = np.arange(Nx)*Lx/Nx
+    
+    return time,Re,Lx,Ly,Lz,x,y,z,U
 
 def plot_reforces(run,filenum,direction,figwidth = 12,aspect=1,Ny=None):
     """
@@ -728,9 +848,9 @@ def spectrum_calc(spec_field,Lx,Lz):
     N,M = spec_field.shape
     ad_n1 = np.arange(N)*(2*np.pi/Lz)
     ad_m1 = np.fft.fftfreq(M,d=Lx/(M*2*np.pi))
-    specz = np.mean(np.abs(spec_field),axis=1)
+    specz = np.mean(np.abs(spec_field)**2,axis=1)
     
-    specx = np.mean(np.abs(spec_field),axis=0)
+    specx = np.mean(np.abs(spec_field)**2,axis=0)
     kmags = np.unique(np.abs(ad_m1))
     specx_f = np.zeros(kmags.shape)
     for m in range(M):
