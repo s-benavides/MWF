@@ -8,8 +8,8 @@
    double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM          = 512  !Streamwise
-   integer,          parameter :: i_NN          = 192  !Spanwise
+   integer,          parameter :: i_MM          = 3072  !Streamwise
+   integer,          parameter :: i_NN          = 512  !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
