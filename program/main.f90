@@ -83,6 +83,10 @@ PROGRAM MAIN
                call io_load_spec(loadfile,'remean1_2d',remean1_2d)
                call io_load_spec(loadfile,'remean2_2d',remean2_2d)
            endif 
+       else ! Load averages
+          ! If no previous save, then set Reynolds averaging counts to zero 
+          i_count = 0 
+          d_avg_time = 0.0
        endif ! Load averages
        call clk_time(d_stop)
 #ifdef _CPUTIME
@@ -109,10 +113,6 @@ PROGRAM MAIN
          write(99,*) 'Delete this file to cleanly terminate the process.'
          close(99)
       end if
-    
-      ! Set Reynolds averaging counts to zero 
-      i_count = 0 
-      d_avg_time = 0.0
 
       call clk_time(d_start)
 
