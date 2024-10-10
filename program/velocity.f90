@@ -178,6 +178,46 @@ contains
 
   end subroutine vel_energy
 
+  subroutine vel_ls_energy(vel_c,e)
+    type(mpt), intent(in) :: vel_c
+    type(spec) :: u  
+    integer :: nx,nx_c,nz_c
+    double precision, intent(out) :: e
+    double precision :: e_,two
+    _loop_mn_vars
+    e_=0
+
+    ! Define cutoff mode-numbers
+    nx_c = 4
+    nz_c = 4
+
+    ! Takes current mpt field and converts to spec
+    call var_mpt2spec(vel_c,u)
+    
+    ! Filter the velocity field keeping only large-scale modes.
+    _loop_mn_begin
+    if (nn.eq.0) then
+       two = 1.0d0
+    else
+       two = 2.0d0
+    end if
+    if (m<i_MM) then
+        nx = m
+    else if (m.ge.i_MM) then
+        nx = abs(m-i_M)
+    end if 
+    if ((nn.le.nz_c).and.(nx.le.nx_c)) then
+        e_ = e_ + two*(u%Re(1,m,n)**2 + u%Im(1,m,n)**2) + two*(u%Re(8,m,n)**2 + u%Im(8,m,n)**2) ! u0^2 + w0^2
+    end if
+    _loop_mn_end
+#ifdef _MPI
+    call mpi_allreduce( e_, e, 1, mpi_double_precision,  &
+         mpi_sum, mpi_comm_world, mpi_er)
+#endif
+
+  end subroutine vel_ls_energy
+
+
     subroutine vel_history(V,y,ans)
     
     type(phys), intent(in) :: V

@@ -14,7 +14,7 @@
 
    character(200)        :: io_statefile
    integer               :: io_save1,i_save_1D,i_restress_save
-   integer,     private  :: io_KE, io_HI, io_uq, io_tke_modes
+   integer,     private  :: io_KE,io_ls_KE,io_HI, io_uq, io_tke_modes
    type (mpt),  private  :: c1
    type (spec),  private  :: s1
    type (spec_xavg_odd), private :: x1o
@@ -48,6 +48,7 @@
       call mpi_bcast(i_save_1D,1,mpi_integer,0,mpi_comm_world,mpi_er)
 #endif
       io_KE    = 20
+      io_ls_KE    = 60
       io_hi    = 0      
       io_uq    = 0
       io_tke_modes  = 0
@@ -129,6 +130,15 @@
           s = 'new'
           if(io_KE/=0)  open(io_KE,status=s,position=p, file='vel_energy.dat')
       endif
+      ! Check for currently existing vel_ls_energy.dat
+      inquire(file='vel_ls_energy.dat',exist=exist)
+      if (exist) then
+          s = 'old'
+          if(io_ls_KE/=0)  open(io_ls_KE,status=s,position=p, file='vel_ls_energy.dat')
+      else 
+          s = 'new'
+          if(io_ls_KE/=0)  open(io_ls_KE,status=s,position=p, file='vel_ls_energy.dat')
+      endif
       ! Check for currently existing vel_history.dat
       inquire(file='vel_history.dat',exist=exist)
       if (exist) then
@@ -167,6 +177,7 @@
    subroutine io_closefiles()
       if(mpi_rnk/=0) return
       if(io_KE/=0) close(io_KE)
+      if(io_ls_KE/=0) close(io_ls_KE)
       if(io_hi/=0) close(io_hi)
       if(io_uq/=0) close(io_uq)
       if(io_tke_modes/=0) close(io_tke_modes)
@@ -206,6 +217,7 @@
       if(modulo(tim_step,i_save_rate2)==0) then
          call vel_mpt2phys(vel_c,vp)
          if(io_KE/=0) call io_write_energy(vp)
+         if(io_ls_KE/=0) call io_write_ls_energy(vel_c)
          if(io_hi/=0) call io_write_history(vp)
          if(io_uq/=0) call io_write_uq(vel_c)
          if(io_tke_modes/=0) call io_write_tke_modes(vel_c)
@@ -1243,6 +1255,17 @@
       close(99, status='delete')
 
    end subroutine io_write_energy
+   
+   subroutine io_write_ls_energy(vel_c)
+      type (mpt), intent(in) :: vel_c
+      double precision :: E
+
+      call vel_ls_energy(vel_c,E)
+      
+      if(mpi_rnk/=0) return
+      write(io_ls_KE,'(2e20.12)')  tim_t, E
+      
+   end subroutine io_write_ls_energy
 
 !--------------------------------------------------------------------------
 !  write to uq file

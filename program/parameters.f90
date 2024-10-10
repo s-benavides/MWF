@@ -8,8 +8,8 @@
    double precision            ::  d_Re         != 180d0!!67.8d0!875d0
    
    !NUMBER OF MODES TO USE IE HIGHEST WAVENUMBER + 1
-   integer,          parameter :: i_MM          = 3072  !Streamwise
-   integer,          parameter :: i_NN          = 512  !Spanwise
+   integer,          parameter :: i_MM          = 512  !Streamwise
+   integer,          parameter :: i_NN          = 192  !Spanwise
    integer,          parameter :: i_K0          = 4
    integer                     :: i_kICx        ! Parameter for random initial  condition
    integer                     :: i_KICz        ! Parameter for random initial condition
@@ -20,8 +20,8 @@
    double precision            :: d_E0          ! Initial condition KE
    double precision            :: d_decay       ! Initial exponential decay profile, if decay>=0, it will use the cutoffs kICx, etc.
    logical                     :: s_half_IC     ! If True, then initializes with turbulence only in the top half of the domain (2D ICs, no v initialized)
-   double precision            :: d_alpha       != 2d0*d_PI/d_Lx!0.5d0
-   double precision            :: d_gamma       != 2d0*d_PI/d_Lz!0.5d0
+   double precision            :: d_alpha       ! = 2d0*d_PI/d_Lx!0.5d0
+   double precision            :: d_gamma       ! = 2d0*d_PI/d_Lz!0.5d0
 
    logical,          parameter :: s_reflect     = .false.!.TRUE.!.FALSE. 
    logical,          parameter :: s_uvreflect   = .FALSE.
